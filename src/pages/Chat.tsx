@@ -1,9 +1,22 @@
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, MoreVertical } from 'lucide-react';
-import { MOCK_USERS, MOCK_CONVERSATIONS } from '@/data/chat';
+import { Search, MoreVertical, Bot } from 'lucide-react';
+import { useApp } from '@/context/AppContext';
 
 export default function Chat() {
   const navigate = useNavigate();
+  const { allProfiles, user } = useApp();
+  const [searchTerm, setSearchTerm] = useState('');
+  const myId = user?.id;
+
+  // Filter out the current user from the list
+  const teamMembers = useMemo(() => {
+    return (allProfiles || []).filter(p => p.id !== myId);
+  }, [allProfiles, myId]);
+
+  const filtered = teamMembers.filter(u =>
+    u.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="flex flex-col h-screen bg-surface-50 pb-20">
@@ -16,69 +29,87 @@ export default function Chat() {
       </div>
 
       {/* Search */}
-      <div className="px-6 py-2 bg-card-bg pb-2">
+      <div className="px-6 py-2 bg-card-bg pb-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
-          <input 
-            type="text" 
-            placeholder="Pesquisar conversas..." 
+          <input
+            type="text"
+            placeholder="Pesquisar conversas..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-surface-50 rounded-xl text-sm text-text-primary focus:outline-none placeholder:text-text-secondary"
           />
         </div>
       </div>
 
-      {/* Online Users List */}
-      <div className="bg-card-bg pb-4 px-6 border-b border-surface-200">
-        <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Online Agora</h3>
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-          {MOCK_USERS.map((user) => (
-            <div key={user.id} className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => navigate(`/chat/${user.id}`)}>
-              <div className="relative">
-                <img 
-                  src={user.avatar} 
-                  alt={user.name} 
-                  className="w-14 h-14 rounded-full object-cover border-2 border-surface-100" 
-                  referrerPolicy="no-referrer" 
-                />
-                <span className={`absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-card-bg rounded-full ${
-                  user.status === 'online' ? 'bg-green-500' : 'bg-red-500'
-                }`} />
-              </div>
-              <span className="text-[10px] font-medium text-text-primary truncate w-14 text-center">
-                {user.name.split(' ')[0]}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Chat List */}
       <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
-        {MOCK_CONVERSATIONS.map((chat) => {
-          const user = MOCK_USERS.find(u => u.id === chat.userId);
-          if (!user) return null;
+
+        {/* KAI Agent - Always first */}
+        <div
+          onClick={() => navigate('/chat/kai-agent')}
+          className="flex items-center gap-4 p-3 hover:bg-card-bg rounded-xl transition-colors cursor-pointer"
+        >
+          <div className="relative">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center shadow-md">
+              <Bot className="text-white" size={24} />
+            </div>
+            <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-surface-50 rounded-full" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex justify-between items-baseline mb-1">
+              <h3 className="font-semibold text-text-primary">KAI — Assistente IA</h3>
+              <span className="text-xs text-gold-500 font-medium">IA</span>
+            </div>
+            <p className="text-sm truncate text-text-secondary">
+              Especialista em financiamento imobiliário
+            </p>
+          </div>
+        </div>
+
+        {/* Team Members */}
+        {filtered.length === 0 && searchTerm === '' && (
+          <div className="flex flex-col items-center py-12 text-text-secondary text-sm">
+            <p>Nenhum colega encontrado.</p>
+            <p className="text-xs mt-1 opacity-60">Os membros da equipe aparecerão aqui.</p>
+          </div>
+        )}
+
+        {filtered.map((member) => {
+          const initials = (member.name || '?')
+            .split(' ')
+            .map((n: string) => n[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase();
 
           return (
-            <div 
-              key={chat.id} 
-              onClick={() => navigate(`/chat/${user.id}`)}
+            <div
+              key={member.id}
+              onClick={() => navigate(`/chat/${member.id}`)}
               className="flex items-center gap-4 p-3 hover:bg-card-bg rounded-xl transition-colors cursor-pointer"
             >
               <div className="relative">
-                <img src={user.avatar} alt={user.name} className="w-12 h-12 rounded-full object-cover" referrerPolicy="no-referrer" />
-                {chat.unread > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-gold-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-surface-50">
-                    {chat.unread}
-                  </span>
+                {member.avatar_url ? (
+                  <img
+                    src={member.avatar_url}
+                    alt={member.name}
+                    className="w-12 h-12 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm">
+                    {initials}
+                  </div>
                 )}
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-surface-50 rounded-full" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-baseline mb-1">
-                  <h3 className="font-semibold text-text-primary truncate">{user.name}</h3>
-                  <span className="text-xs text-text-secondary">{chat.lastMessageTime}</span>
+                  <h3 className="font-semibold text-text-primary truncate">{member.name}</h3>
                 </div>
-                <p className={`text-sm truncate ${chat.unread > 0 ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
-                  {chat.lastMessage}
+                <p className="text-sm text-text-secondary truncate capitalize">
+                  {member.role || 'Membro da equipe'}
                 </p>
               </div>
             </div>
