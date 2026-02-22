@@ -4,7 +4,7 @@ import {
   ChevronLeft, Send, Mic, Image as ImageIcon,
   FileText, Camera, X, MoreVertical, Phone, Plus, Loader2,
   Download, SwitchCamera, Circle, Square, Bot, Play, Pause,
-  Maximize, Volume2, VolumeX, PictureInPicture
+  Maximize, Volume2, VolumeX, PictureInPicture, Lock, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { sendMessageToKai } from '@/services/kaiAgent';
@@ -21,6 +21,11 @@ interface ChatMessage {
   fileName?: string;
   timestamp: string;
   isMe: boolean;
+  // View Once fields
+  viewOnce?: boolean;
+  isLocked?: boolean;
+  viewedAt?: string | null;
+  mediaPath?: string;
 }
 
 interface ChatUser {
@@ -47,6 +52,137 @@ function getSupportedVideoMimeType(): string {
   }
   return ''; // let browser decide
 }
+
+// ─── View Once Card ──────────────────────────────────────────────────────────
+const ViewOnceCard = (
+  { msg, onOpen }: { msg: ChatMessage; onOpen: () => void }
+) => {
+  const emoji = msg.type === 'video' ? '🎥' : msg.type === 'document' ? '📄' : '🖼️';
+  return (
+    <button
+      onClick={onOpen}
+      className="flex items-center gap-3 p-4 w-full text-left rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 transition-colors"
+    >
+      <div className="w-12 h-12 rounded-full bg-gold-500/20 flex items-center justify-center flex-shrink-0">
+        <Eye size={22} className="text-gold-600 dark:text-gold-400" />
+      </div>
+      <div className="flex flex-col">
+        <span className="font-semibold text-sm text-text-primary">{emoji} Visualização Única</span>
+        <span className="text-xs text-text-secondary mt-0.5">Toque para visualizar – disponível apenas uma vez</span>
+      </div>
+      <Lock size={14} className="ml-auto text-text-secondary flex-shrink-0" />
+    </button>
+  );
+};
+
+// ─── View Once Modal ─────────────────────────────────────────────────────────
+const ViewOnceModal = ({
+  messageId,
+  type,
+  onClose,
+}: {
+  messageId: string;
+  type: ChatMessage['type'];
+  onClose: () => void;
+}) => {
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let url = '';
+    const fetchUrl = async () => {
+      setLoading(true);
+      const { data, error: fnError } = await supabase.functions.invoke('generate-view-once-url', {
+        body: { message_id: messageId },
+      });
+      if (fnError || !data?.signedUrl) {
+        setError('Não foi possível abrir a mídia.');
+        setLoading(false);
+        return;
+      }
+      url = data.signedUrl as string;
+      setSignedUrl(url);
+      setLoading(false);
+      // Auto-close after 30 seconds (URL expiry)
+      timerRef.current = setTimeout(() => {
+        setSignedUrl(null);
+        onClose();
+      }, 29000);
+    };
+    fetchUrl();
+    return () => {
+      // Wipe signed URL from memory on unmount
+      setSignedUrl(null);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [messageId]);
+
+  const handleClose = () => {
+    setSignedUrl(null);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[300] bg-black flex flex-col" onClick={handleClose}>
+      <div className="flex items-center justify-between p-4 text-white">
+        <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-full">
+          <X size={24} />
+        </button>
+        <span className="text-sm font-medium flex items-center gap-1.5">
+          <Eye size={14} /> Visualização Única
+        </span>
+        <div className="w-10" /> {/* spacer */}
+      </div>
+
+      <div
+        className="flex-1 flex items-center justify-center p-4"
+        onClick={e => e.stopPropagation()}
+        onContextMenu={e => e.preventDefault()}
+      >
+        {loading && <Loader2 size={32} className="animate-spin text-white" />}
+        {error && <p className="text-white text-center">{error}</p>}
+        {signedUrl && !loading && (
+          <>
+            {(type === 'image') && (
+              <img
+                src={signedUrl}
+                alt=""
+                className="max-w-full max-h-full object-contain rounded-lg select-none"
+                draggable={false}
+                onContextMenu={e => e.preventDefault()}
+              />
+            )}
+            {type === 'video' && (
+              <video
+                src={signedUrl}
+                controls
+                autoPlay
+                playsInline
+                controlsList="nodownload nofullscreen"
+                className="max-w-full max-h-full rounded-lg"
+                onContextMenu={e => e.preventDefault()}
+              />
+            )}
+            {type === 'document' && (
+              <iframe
+                src={signedUrl}
+                className="w-full h-full rounded-lg"
+                title="Documento"
+              />
+            )}
+          </>
+        )}
+      </div>
+      <div className="p-4 text-center">
+        <p className="text-white/50 text-xs">Esta mídia desaparecerá após fechar</p>
+      </div>
+    </div>
+  );
+};
+
 
 // ─── Custom Audio Player with Waveform ──────────────────────────────────────
 const AudioMessage = ({ url, isMe }: { url: string; isMe: boolean }) => {
@@ -268,6 +404,8 @@ export default function ChatDetail() {
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isViewOnce, setIsViewOnce] = useState(false);
+  const [viewOnceModalMsgId, setViewOnceModalMsgId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -316,13 +454,24 @@ export default function ChatDetail() {
     }
   }, [id, allProfiles, isKAI]);
 
-  // ─── Upload to Supabase Storage ───────────────────────────────────────────
+  // ─── Upload to Supabase Storage (public) ─────────────────────────────────
   const uploadMedia = async (file: File, type: ChatMessage['type']): Promise<string | null> => {
     const ext = file.name.split('.').pop() || 'bin';
     const path = `${conversationId}/${Date.now()}_${type}.${ext}`;
     const { error } = await supabase.storage.from('chat-media').upload(path, file);
     if (error) { console.error('Upload error:', error); return null; }
     return supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl;
+  };
+
+  // ─── Upload to private bucket (view-once only) ────────────────────────────
+  const uploadMediaPrivate = async (file: File, type: ChatMessage['type']): Promise<string | null> => {
+    const ext = file.name.split('.').pop() || 'bin';
+    const path = `${conversationId}/${Date.now()}_${type}.${ext}`;
+    const { error } = await supabase.storage.from('chat-media-private').upload(path, file, {
+      contentType: file.type,
+    });
+    if (error) { console.error('Private upload error:', error); return null; }
+    return path; // Return the path only – no public URL
   };
 
   // ─── Load history ─────────────────────────────────────────────────────────
@@ -342,6 +491,10 @@ export default function ChatDetail() {
       fileName: m.file_name,
       timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isMe: m.sender_id === myId,
+      viewOnce: m.view_once ?? false,
+      isLocked: m.is_locked ?? false,
+      viewedAt: m.viewed_at ?? null,
+      mediaPath: m.media_path ?? null,
     })));
   }, [conversationId, isKAI, myId]);
 
@@ -377,6 +530,10 @@ export default function ChatDetail() {
             fileName: m.file_name,
             timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             isMe: false,
+            viewOnce: m.view_once ?? false,
+            isLocked: m.is_locked ?? false,
+            viewedAt: m.viewed_at ?? null,
+            mediaPath: m.media_path ?? null,
           }];
         });
       }
@@ -441,6 +598,7 @@ export default function ChatDetail() {
     file?: File,
     fileName?: string,
     existingUrl?: string,
+    viewOnceFlag?: boolean,
   ) => {
     if (!text && !file && !existingUrl) return;
 
@@ -456,13 +614,28 @@ export default function ChatDetail() {
 
     // Upload media to storage
     let mediaUrl = existingUrl;
+    let mediaPath: string | undefined;
+    const useViewOnce = viewOnceFlag ?? false;
+
     if (file) {
       setIsUploading(true);
-      mediaUrl = (await uploadMedia(file, type)) ?? undefined;
-      setIsUploading(false);
-      if (!mediaUrl && !isKAI) {
-        alert('Falha ao enviar o arquivo. Tente novamente.');
-        return;
+      if (useViewOnce && ['image', 'video', 'document'].includes(type)) {
+        // Private upload – no public URL
+        const privatePath = await uploadMediaPrivate(file, type);
+        setIsUploading(false);
+        if (!privatePath) {
+          alert('Falha ao enviar o arquivo. Tente novamente.');
+          return;
+        }
+        mediaPath = privatePath;
+        mediaUrl = undefined; // no public URL for view-once
+      } else {
+        mediaUrl = (await uploadMedia(file, type)) ?? undefined;
+        setIsUploading(false);
+        if (!mediaUrl && !isKAI) {
+          alert('Falha ao enviar o arquivo. Tente novamente.');
+          return;
+        }
       }
     }
 
@@ -509,6 +682,8 @@ export default function ChatDetail() {
       type,
       media_url: mediaUrl || null,
       file_name: fileName || file?.name || null,
+      view_once: useViewOnce,
+      media_path: mediaPath || null,
     });
 
     if (error) console.error('Insert error:', error);
@@ -530,7 +705,8 @@ export default function ChatDetail() {
 
   const confirmSendMedia = () => {
     if (!mediaPreview) return;
-    handleSendMessage(inputValue || '', mediaPreview.type, mediaPreview.file, mediaPreview.file.name);
+    handleSendMessage(inputValue || '', mediaPreview.type, mediaPreview.file, mediaPreview.file.name, undefined, isViewOnce);
+    setIsViewOnce(false);
     setMediaPreview(null);
   };
 
@@ -776,20 +952,47 @@ export default function ChatDetail() {
         )}
 
         {messages.map(msg => {
-          const isMediaOnly = ['image', 'video'].includes(msg.type) && !msg.text;
+          const isMediaOnly = ['image', 'video'].includes(msg.type) && !msg.text && !msg.viewOnce;
+          // View once states
+          const isViewOnceMsg = msg.viewOnce;
+          const isViewOnceViewed = isViewOnceMsg && (msg.isLocked || msg.viewedAt);
+          const isViewOncePending = isViewOnceMsg && !msg.isMe && !isViewOnceViewed;
+
           return (
             <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] relative shadow-sm ${msg.isMe
-                ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-2xl rounded-tr-none'
-                : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-2xl rounded-tl-none'
+                  ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-2xl rounded-tr-none'
+                  : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-2xl rounded-tl-none'
                 } ${isMediaOnly ? 'p-1 pb-6' : 'p-3'}`}>
 
-                {msg.type === 'image' && msg.mediaUrl && (
+                {/* ── VIEW ONCE badge for sender ── */}
+                {isViewOnceMsg && msg.isMe && (
+                  <div className="flex items-center gap-2 text-xs text-text-secondary italic mb-1">
+                    <Eye size={12} />
+                    <span>Visualização única – enviado</span>
+                  </div>
+                )}
+
+                {/* ── VIEW ONCE: locked / viewed state ── */}
+                {isViewOnceViewed && !msg.isMe && (
+                  <div className="flex items-center gap-2 p-3 text-text-secondary">
+                    <EyeOff size={18} />
+                    <span className="text-sm italic">Mensagem visualizada</span>
+                  </div>
+                )}
+
+                {/* ── VIEW ONCE: pending tap to open ── */}
+                {isViewOncePending && (
+                  <ViewOnceCard msg={msg} onOpen={() => setViewOnceModalMsgId(msg.id)} />
+                )}
+
+                {/* ── Regular media (non view-once) ── */}
+                {!isViewOnceMsg && msg.type === 'image' && msg.mediaUrl && (
                   <div className={`${!isMediaOnly ? 'mb-2' : ''} cursor-pointer`} onClick={() => setFullscreenMedia({ url: msg.mediaUrl!, type: 'image', name: msg.fileName })}>
                     <img src={msg.mediaUrl} alt="" className={`${isMediaOnly ? 'rounded-xl' : 'rounded-lg'} max-h-72 w-full object-cover`} />
                   </div>
                 )}
-                {msg.type === 'video' && msg.mediaUrl && (
+                {!isViewOnceMsg && msg.type === 'video' && msg.mediaUrl && (
                   <div className={`${!isMediaOnly ? 'mb-2' : ''}`}>
                     <video src={msg.mediaUrl} controls className={`${isMediaOnly ? 'rounded-xl' : 'rounded-lg'} max-h-72 w-full`} playsInline />
                   </div>
@@ -797,7 +1000,7 @@ export default function ChatDetail() {
                 {msg.type === 'audio' && msg.mediaUrl && (
                   <AudioMessage url={msg.mediaUrl} isMe={msg.isMe} />
                 )}
-                {msg.type === 'document' && msg.mediaUrl && (
+                {!isViewOnceMsg && msg.type === 'document' && msg.mediaUrl && (
                   <div className="flex items-center gap-3 bg-black/5 dark:bg-white/10 p-3 rounded-xl mb-2 cursor-pointer"
                     onClick={() => setFullscreenMedia({ url: msg.mediaUrl!, type: 'document', name: msg.fileName })}>
                     <FileText size={24} className="text-red-500 flex-shrink-0" />
@@ -805,7 +1008,7 @@ export default function ChatDetail() {
                   </div>
                 )}
                 {msg.text && (
-                  <div className={`text-sm leading-relaxed ${['image', 'video'].includes(msg.type) ? 'px-1 pt-1' : ''}`}>
+                  <div className={`text-sm leading-relaxed ${['image', 'video'].includes(msg.type) && !isViewOnceMsg ? 'px-1 pt-1' : ''}`}>
                     {msg.senderId === 'kai-agent'
                       ? <ReactMarkdown>{msg.text}</ReactMarkdown>
                       : msg.text}
@@ -819,7 +1022,7 @@ export default function ChatDetail() {
                 </span>
               </div>
             </div>
-          )
+          );
         })}
 
         {isTypingVisible && (
@@ -958,7 +1161,7 @@ export default function ChatDetail() {
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[250] bg-black/95 flex flex-col">
             <div className="flex items-center justify-between p-4 text-white">
-              <button onClick={() => setMediaPreview(null)} className="p-2 hover:bg-white/10 rounded-full"><X size={24} /></button>
+              <button onClick={() => { setMediaPreview(null); setIsViewOnce(false); }} className="p-2 hover:bg-white/10 rounded-full"><X size={24} /></button>
               <span className="text-sm font-medium">Pré-visualização</span>
               <div className="w-10" />
             </div>
@@ -976,19 +1179,54 @@ export default function ChatDetail() {
                 </div>
               )}
             </div>
-            <div className="p-4 bg-black/60 flex items-center gap-2">
-              <input value={inputValue} onChange={e => setInputValue(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && confirmSendMedia()}
-                placeholder="Adicionar legenda..."
-                className="flex-1 bg-white/10 text-white placeholder:text-white/50 border-none outline-none rounded-full px-4 py-3" />
-              <button onClick={confirmSendMedia}
-                className="bg-gold-500 text-white p-3 rounded-full flex items-center justify-center">
-                <Send size={20} />
-              </button>
+            {/* View Once toggle + send bar */}
+            <div className="p-4 bg-black/60 flex flex-col gap-2">
+              {['image', 'video', 'document'].includes(mediaPreview.type) && (
+                <button
+                  onClick={() => setIsViewOnce(v => !v)}
+                  className={`flex items-center gap-2 self-center px-4 py-2 rounded-full border text-sm font-medium transition-colors ${isViewOnce
+                      ? 'bg-gold-500 border-gold-500 text-white'
+                      : 'bg-white/10 border-white/20 text-white/70'
+                    }`}
+                >
+                  {isViewOnce ? <Lock size={14} /> : <Eye size={14} />}
+                  {isViewOnce ? 'Visualização Única ativada' : 'Ativar Visualização Única'}
+                </button>
+              )}
+              <div className="flex items-center gap-2">
+                <input value={inputValue} onChange={e => setInputValue(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && confirmSendMedia()}
+                  placeholder={isViewOnce ? 'Sem legenda (Visualização Única)' : 'Adicionar legenda...'}
+                  disabled={isViewOnce}
+                  className="flex-1 bg-white/10 text-white placeholder:text-white/50 border-none outline-none rounded-full px-4 py-3 disabled:opacity-50" />
+                <button onClick={confirmSendMedia}
+                  className="bg-gold-500 text-white p-3 rounded-full flex items-center justify-center">
+                  <Send size={20} />
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* View Once Modal */}
+      {viewOnceModalMsgId && (() => {
+        const msg = messages.find(m => m.id === viewOnceModalMsgId);
+        if (!msg) return null;
+        return (
+          <ViewOnceModal
+            messageId={viewOnceModalMsgId}
+            type={msg.type}
+            onClose={() => {
+              setViewOnceModalMsgId(null);
+              // Update local state so the message immediately shows as viewed
+              setMessages(prev => prev.map(m =>
+                m.id === viewOnceModalMsgId ? { ...m, isLocked: true, viewedAt: new Date().toISOString() } : m
+              ));
+            }}
+          />
+        );
+      })()}
 
       {/* Fullscreen Media */}
       <AnimatePresence>
