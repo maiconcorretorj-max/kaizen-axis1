@@ -16,6 +16,7 @@ export default function SendEmail() {
 
   const [to, setTo] = useState<string[]>([]);
   const [cc, setCc] = useState<string[]>([]);
+  const [bcc, setBcc] = useState<string[]>([]);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [attachments, setAttachments] = useState<{ name: string, type: string }[]>([]);
@@ -26,11 +27,7 @@ export default function SendEmail() {
     const found = getClient(id);
     if (found) {
       setClient(found);
-      setSubject(`Análise de Crédito - ${found.name} - ${found.development || ''}`);
-
-      const documentsList = found.documents && found.documents.length > 0
-        ? found.documents.map(d => `- ${d.name}`).join('\n')
-        : '(Nenhum documento anexado)';
+      setSubject(`KAIZEN - APROVAR SICAQ CLIENTE:${found.name} CPF:${found.cpf || 'Não informado'}`);
 
       const template = `Prezados,
 
@@ -44,16 +41,14 @@ Telefone: ${found.phone}
 Endereço: ${found.address || 'Não informado'}
 Profissão: ${found.profession || 'Não informado'}
 Renda: ${found.grossIncome}
-${found.incomeType || 'Não informado'}
-Cotista: ${found.cotista || 'Não'}
-Fator Social: ${found.socialFactor || 'Não'}
+Tipo: ${found.incomeType === 'Formal' ? 'Formal' : 'Informal'}
+Cotista: ${found.cotista ? 'Sim' : 'Não'}
+Fator Social: ${found.socialFactor ? 'Sim' : 'Não'}
 Região de interesse: ${found.regionOfInterest || 'Não informado'}
 
 Observação: ${found.observations || 'Nenhuma observação.'}
 
-Corretor: ${userName}
-COORDENADOR: MAICON OLIVEIRA
-GERENTE: MARVYN LANDES`;
+CORRETORA: ${userName} - COORDENADOR: THALITA BELLO - GERENTE: MARVYN LANDES`;
 
       setBody(template);
 
@@ -75,6 +70,7 @@ GERENTE: MARVYN LANDES`;
         body: {
           to,
           cc,
+          bcc,
           subject,
           text: body,
         },
@@ -141,12 +137,21 @@ GERENTE: MARVYN LANDES`;
             placeholder="analise@banco.com"
           />
 
-          <EmailInput
-            label="Cc"
-            emails={cc}
-            onEmailsChange={setCc}
-            placeholder="gerente@imobiliaria.com"
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <EmailInput
+              label="Cc"
+              emails={cc}
+              onEmailsChange={setCc}
+              placeholder="copia@empresa.com"
+            />
+
+            <EmailInput
+              label="Cco (Bcc)"
+              emails={bcc}
+              onEmailsChange={setBcc}
+              placeholder="secreto@empresa.com"
+            />
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Assunto</label>

@@ -41,10 +41,6 @@ export default function Clients() {
     if (phone) window.open(`tel:${phone.replace(/\D/g, '')}`);
   };
 
-  const handleEmail = (email: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (email) window.open(`mailto:${email}`);
-  };
 
   const handleOpenWhatsapp = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
@@ -213,7 +209,10 @@ export default function Clients() {
                 variant="secondary"
                 size="sm"
                 className="flex-1 h-9 text-xs"
-                onClick={(e) => handleEmail(client.email, e)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/clients/${client.id}/email`);
+                }}
               >
                 <Mail size={14} /> Email
               </RoundedButton>

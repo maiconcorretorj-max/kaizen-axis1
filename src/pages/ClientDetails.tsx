@@ -155,7 +155,7 @@ export default function ClientDetails() {
               variant="secondary"
               size="sm"
               className="w-full"
-              onClick={() => client.email && window.open(`mailto:${client.email}`)}
+              onClick={() => navigate(`/clients/${id}/email`)}
             >
               <Mail size={16} /> Email
             </RoundedButton>
