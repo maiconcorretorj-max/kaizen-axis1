@@ -36,8 +36,8 @@ function getSupportedVideoMimeType(): string {
     'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
     'video/webm',
-    'video/mp4;codecs=h264,aac',
-    'video/mp4',
+    'video/mp4;codecs=avc1,mp4a.40.2', // iOS specific
+    'video/mp4', // Base iOS fallback
   ];
   for (const type of types) {
     try {
@@ -235,6 +235,13 @@ export default function ChatDetail() {
     existingUrl?: string,
   ) => {
     if (!text && !file && !existingUrl) return;
+
+    // Prevent sending empty or corrupted files (0 bytes)
+    if (file && file.size === 0) {
+      alert('Ocorreu um erro ao processar o arquivo (tamanho 0 bytes). Tente novamente.');
+      return;
+    }
+
     if (!chatUser) return;
     setInputValue('');
     setShowAttachments(false);
@@ -359,24 +366,48 @@ export default function ChatDetail() {
     videoChunksRef.current = [];
     const mimeType = getSupportedVideoMimeType();
     let recorder: MediaRecorder;
+
     try {
+      // iOS Safari is very strict: if we pass an unsupported MIME type it throws.
+      // If we pass NO MIME type, it defaults to a proprietary mp4 format.
       recorder = mimeType
         ? new MediaRecorder(streamRef.current, { mimeType })
         : new MediaRecorder(streamRef.current);
-    } catch {
-      try { recorder = new MediaRecorder(streamRef.current); }
-      catch { alert('Gravação de vídeo não suportada neste dispositivo.'); return; }
+    } catch (err) {
+      console.warn('Failed to start MediaRecorder with mimeType, falling back:', err);
+      try {
+        recorder = new MediaRecorder(streamRef.current);
+      } catch (fallbackErr) {
+        alert('Gravação de vídeo não suportada neste dispositivo (' + (fallbackErr as Error).message + ').');
+        return;
+      }
     }
+
     videoRecorderRef.current = recorder;
-    recorder.ondataavailable = e => { if (e.data.size > 0) videoChunksRef.current.push(e.data); };
+    recorder.ondataavailable = e => {
+      if (e.data && e.data.size > 0) {
+        videoChunksRef.current.push(e.data);
+      }
+    };
     recorder.onstop = () => {
-      const blob = new Blob(videoChunksRef.current, { type: mimeType || 'video/webm' });
-      const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+      if (videoChunksRef.current.length === 0) {
+        alert('Erro ao gravar vídeo: nenhum dado capturado pelo dispositivo.');
+        stopCamera();
+        return;
+      }
+
+      // On iOS Safari, the resulting blob is often video/mp4 even if we didn't specify it
+      const actualMimeType = videoChunksRef.current[0].type || mimeType || 'video/mp4';
+      const blob = new Blob(videoChunksRef.current, { type: actualMimeType });
+
+      const ext = actualMimeType.includes('mp4') ? 'mp4' : 'webm';
       const file = new File([blob], `video_${Date.now()}.${ext}`, { type: blob.type });
       setMediaPreview({ url: URL.createObjectURL(file), type: 'video', file });
       stopCamera();
     };
-    recorder.start(100); // collect data every 100ms
+
+    // Start recording, collecting 1000ms chunks (better for mobile memory than 100ms)
+    recorder.start(1000);
     setIsRecordingVideo(true);
   };
 
@@ -522,8 +553,8 @@ export default function ChatDetail() {
         {messages.map(msg => (
           <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-lg p-3 shadow-sm ${msg.isMe
-                ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-tr-none'
-                : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-tl-none'
+              ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-tr-none'
+              : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-tl-none'
               }`}>
               {msg.type === 'image' && msg.mediaUrl && (
                 <div className="mb-2 cursor-pointer" onClick={() => setFullscreenMedia({ url: msg.mediaUrl!, type: 'image', name: msg.fileName })}>
