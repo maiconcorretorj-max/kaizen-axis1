@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, Send, Paperclip, Mic, Image as ImageIcon,
+  ChevronLeft, Send, Mic, Image as ImageIcon,
   FileText, Camera, X, MoreVertical, Phone, Plus, Loader2,
   Download, SwitchCamera, Circle, Square, Bot
 } from 'lucide-react';
@@ -14,6 +14,7 @@ import { useApp } from '@/context/AppContext';
 interface ChatMessage {
   id: string;
   senderId: string;
+  senderName?: string;
   text?: string;
   type: 'text' | 'image' | 'audio' | 'video' | 'document';
   mediaUrl?: string;
@@ -33,18 +34,24 @@ interface ChatUser {
 export default function ChatDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, allProfiles } = useApp();
+  const { user, allProfiles, profile } = useApp();
 
   const [chatUser, setChatUser] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [showAttachments, setShowAttachments] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
+  const [isKaiTyping, setIsKaiTyping] = useState(false);
+  const [typingUser, setTypingUser] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // Audio recording refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -52,10 +59,7 @@ export default function ChatDetail() {
   const animationFrameRef = useRef<number>(0);
   const [audioVolumes, setAudioVolumes] = useState<number[]>(Array(15).fill(10));
 
-  const [fullscreenMedia, setFullscreenMedia] = useState<{ url: string; type: string; name?: string } | null>(null);
-  const [mediaPreview, setMediaPreview] = useState<{ url: string; type: ChatMessage['type']; file: File } | null>(null);
-
-  // Camera
+  // Camera refs
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('environment');
   const [isRecordingVideo, setIsRecordingVideo] = useState(false);
@@ -64,46 +68,46 @@ export default function ChatDetail() {
   const videoRecorderRef = useRef<MediaRecorder | null>(null);
   const videoChunksRef = useRef<Blob[]>([]);
 
+  const [fullscreenMedia, setFullscreenMedia] = useState<{ url: string; type: string; name?: string } | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<{ url: string; type: ChatMessage['type']; file: File } | null>(null);
+
   const isKAI = id === 'kai-agent';
-  const myId = user?.id || 'me';
+  const myId = user?.id || '';
+  const myName = profile?.name || 'Usuário';
+  const conversationId = isKAI ? `kai-${myId}` : [myId, id].sort().join('_');
 
-  // Build conversation ID (sorted pair of user IDs)
-  const conversationId = isKAI
-    ? `kai-${myId}`
-    : [myId, id].sort().join('_');
-
-  // Load chat partner info
+  // ─── Load chat partner ───────────────────────────────────────────────────────
   useEffect(() => {
     if (isKAI) {
       setChatUser({ id: 'kai-agent', name: 'KAI — Assistente IA', isAI: true });
       return;
     }
     const found = allProfiles.find(p => p.id === id);
-    if (found) {
-      setChatUser({
-        id: found.id,
-        name: found.name,
-        avatar: (found as any).avatar_url,
-        role: found.role,
-      });
-    }
+    if (found) setChatUser({ id: found.id, name: found.name, avatar: (found as any).avatar_url, role: found.role });
   }, [id, allProfiles, isKAI]);
 
-  // Load messages from Supabase (non-KAI chats only)
+  // ─── Upload media to Supabase Storage ───────────────────────────────────────
+  const uploadMedia = async (file: File, type: ChatMessage['type']): Promise<string | null> => {
+    const ext = file.name.split('.').pop() || 'bin';
+    const path = `${conversationId}/${Date.now()}_${type}.${ext}`;
+    const { error } = await supabase.storage.from('chat-media').upload(path, file, { upsert: false });
+    if (error) { console.error('Upload error:', error); return null; }
+    const { data } = supabase.storage.from('chat-media').getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  // ─── Load message history from Supabase ─────────────────────────────────────
   const loadMessages = useCallback(async () => {
-    if (isKAI) {
-      // KAI messages are session-only (not persisted, to save costs)
-      return;
-    }
+    if (isKAI || !myId) return;
     const { data, error } = await supabase
       .from('chat_messages')
       .select('*')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
 
-    if (error) { console.error('Error loading messages:', error); return; }
+    if (error) { console.error('Load error:', error); return; }
 
-    const mapped: ChatMessage[] = (data || []).map(m => ({
+    setMessages((data || []).map(m => ({
       id: m.id,
       senderId: m.sender_id,
       text: m.content,
@@ -112,118 +116,158 @@ export default function ChatDetail() {
       fileName: m.file_name,
       timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isMe: m.sender_id === myId,
-    }));
-    setMessages(mapped);
+    })));
   }, [conversationId, isKAI, myId]);
 
+  // ─── Supabase Realtime Broadcast Channel ────────────────────────────────────
   useEffect(() => {
+    if (isKAI || !myId || !id) return;
     loadMessages();
 
-    if (!isKAI && id) {
-      // Realtime subscription for new messages
-      const channel = supabase
-        .channel(`chat_${conversationId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'chat_messages',
-            filter: `conversation_id=eq.${conversationId}`,
-          },
-          (payload) => {
-            const m = payload.new as any;
-            if (m.sender_id === myId) return; // Already added optimistically
-            setMessages(prev => [...prev, {
-              id: m.id,
-              senderId: m.sender_id,
-              text: m.content,
-              type: m.type,
-              mediaUrl: m.media_url,
-              fileName: m.file_name,
-              timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              isMe: false,
-            }]);
-          }
-        )
-        .subscribe();
+    // Use broadcast channel for instant message delivery and typing indicators
+    const channel = supabase.channel(`room:${conversationId}`, {
+      config: { broadcast: { self: false } },
+    });
 
-      return () => { supabase.removeChannel(channel); };
-    }
-  }, [conversationId, isKAI, loadMessages, myId, id]);
+    channelRef.current = channel;
+
+    channel
+      .on('broadcast', { event: 'new_message' }, ({ payload }) => {
+        const m = payload as ChatMessage;
+        setMessages(prev => {
+          // Avoid duplicates (optimistic update already added it)
+          if (prev.find(x => x.id === m.id)) return prev;
+          return [...prev, { ...m, isMe: m.senderId === myId }];
+        });
+      })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (payload.userId !== myId) {
+          setTypingUser(payload.name);
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = setTimeout(() => setTypingUser(null), 3000);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [conversationId, isKAI, myId, id, loadMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+  }, [messages, isKaiTyping, typingUser]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-      if (audioContextRef.current?.state !== 'closed') audioContextRef.current?.close();
+      audioContextRef.current?.close();
       if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
       stopCamera();
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, []);
 
+  // ─── Typing broadcast ────────────────────────────────────────────────────────
+  const broadcastTyping = () => {
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { userId: myId, name: myName },
+    });
+  };
+
+  // ─── Send message ────────────────────────────────────────────────────────────
   const handleSendMessage = async (
     text: string = inputValue,
     type: ChatMessage['type'] = 'text',
     mediaUrl?: string,
-    fileName?: string
+    fileName?: string,
+    file?: File
   ) => {
-    if ((!text && !mediaUrl) || !chatUser) return;
+    if ((!text && !mediaUrl && !file) || !chatUser) return;
+    setInputValue('');
+    setShowAttachments(false);
+
+    // Upload file to Storage if needed
+    let finalMediaUrl = mediaUrl;
+    if (file && !isKAI) {
+      setIsUploading(true);
+      finalMediaUrl = await uploadMedia(file, type) ?? undefined;
+      setIsUploading(false);
+      if (!finalMediaUrl) {
+        alert('Falha ao enviar arquivo. Tente novamente.');
+        return;
+      }
+    }
 
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const tempId = `temp_${Date.now()}`;
 
     const newMsg: ChatMessage = {
-      id: Date.now().toString(),
+      id: tempId,
       senderId: myId,
+      senderName: myName,
       text,
       type,
-      mediaUrl,
+      mediaUrl: finalMediaUrl,
       fileName,
       timestamp,
       isMe: true,
     };
 
+    // Optimistic update
     setMessages(prev => [...prev, newMsg]);
-    setInputValue('');
-    setShowAttachments(false);
 
-    // Persist to Supabase (non-KAI only)
-    if (!isKAI && type === 'text') {
-      await supabase.from('chat_messages').insert({
-        sender_id: myId,
-        receiver_id: id,
-        conversation_id: conversationId,
-        content: text,
-        type,
-        media_url: mediaUrl || null,
-        file_name: fileName || null,
-      });
-    }
-
-    // KAI Agent response
+    // KAI Agent
     if (isKAI && type === 'text' && text) {
-      setIsTyping(true);
+      setIsKaiTyping(true);
       const history = messages.map(m => ({
         role: m.isMe ? 'user' : 'assistant' as 'user' | 'assistant',
         content: m.text || '',
       }));
-
       const responseText = await sendMessageToKai(text, history);
-      setIsTyping(false);
-
+      setIsKaiTyping(false);
       setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
+        id: `kai_${Date.now()}`,
         senderId: 'kai-agent',
         text: responseText,
         type: 'text',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isMe: false,
       }]);
+      return;
     }
+
+    if (isKAI) return;
+
+    // Persist to Supabase DB
+    const { data: inserted, error } = await supabase.from('chat_messages').insert({
+      sender_id: myId,
+      receiver_id: id,
+      conversation_id: conversationId,
+      content: text || null,
+      type,
+      media_url: finalMediaUrl || null,
+      file_name: fileName || null,
+    }).select().single();
+
+    if (error) {
+      console.error('Insert error:', error);
+    }
+
+    // Broadcast to receiver in real time
+    const broadcastMsg: ChatMessage = {
+      ...newMsg,
+      id: inserted?.id ?? tempId,
+    };
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'new_message',
+      payload: broadcastMsg,
+    });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: ChatMessage['type']) => {
@@ -238,20 +282,20 @@ export default function ChatDetail() {
 
   const confirmSendMedia = () => {
     if (mediaPreview) {
-      handleSendMessage(inputValue, mediaPreview.type, mediaPreview.url, mediaPreview.file.name);
+      handleSendMessage(inputValue || '', mediaPreview.type, undefined, mediaPreview.file.name, mediaPreview.file);
       setMediaPreview(null);
     }
   };
 
-  // Camera
+  // ─── Camera ──────────────────────────────────────────────────────────────────
   const startCamera = async (facingMode = cameraFacingMode) => {
     try {
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current?.getTracks().forEach(t => t.stop());
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       setIsCameraOpen(true);
-    } catch (err) {
+    } catch {
       alert('Não foi possível acessar a câmera. Verifique as permissões.');
     }
   };
@@ -264,25 +308,24 @@ export default function ChatDetail() {
   };
 
   const takePhoto = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
-      canvas.toBlob(blob => {
-        if (blob) {
-          const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
-          setMediaPreview({ url: URL.createObjectURL(file), type: 'image', file });
-          stopCamera();
-        }
-      }, 'image/jpeg', 0.9);
-    }
+    if (!videoRef.current) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
+    canvas.toBlob(blob => {
+      if (blob) {
+        const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        setMediaPreview({ url: URL.createObjectURL(file), type: 'image', file });
+        stopCamera();
+      }
+    }, 'image/jpeg', 0.9);
   };
 
   const startVideoRecording = () => {
     if (!streamRef.current) return;
     videoChunksRef.current = [];
-    const recorder = new MediaRecorder(streamRef.current);
+    const recorder = new MediaRecorder(streamRef.current, { mimeType: 'video/webm' });
     videoRecorderRef.current = recorder;
     recorder.ondataavailable = e => { if (e.data.size > 0) videoChunksRef.current.push(e.data); };
     recorder.onstop = () => {
@@ -302,23 +345,23 @@ export default function ChatDetail() {
     }
   };
 
-  // Audio
+  // ─── Audio recording ─────────────────────────────────────────────────────────
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
-
       recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        handleSendMessage(undefined, 'audio', URL.createObjectURL(blob));
+        const file = new File([blob], `audio_${Date.now()}.webm`, { type: 'audio/webm' });
         stream.getTracks().forEach(t => t.stop());
         if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         audioContextRef.current?.close();
+        // Send with file upload
+        await handleSendMessage('', 'audio', undefined, file.name, file);
       };
-
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioContextRef.current = ctx;
       const analyser = ctx.createAnalyser();
@@ -335,9 +378,7 @@ export default function ChatDetail() {
       update();
       recorder.start();
       setIsRecording(true);
-    } catch {
-      alert('Não foi possível acessar o microfone.');
-    }
+    } catch { alert('Não foi possível acessar o microfone.'); }
   };
 
   const stopRecordingAndSend = () => {
@@ -362,22 +403,19 @@ export default function ChatDetail() {
 
   const handleDownload = (url: string, filename: string) => {
     const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
-  if (!chatUser) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="animate-spin text-gold-500" size={32} />
-      </div>
-    );
-  }
+  if (!chatUser) return (
+    <div className="flex items-center justify-center h-screen">
+      <Loader2 className="animate-spin text-gold-500" size={32} />
+    </div>
+  );
 
   const initials = chatUser.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  const isTypingVisible = typingUser || isKaiTyping;
+  const typingLabel = isKaiTyping ? 'KAI está digitando...' : typingUser ? `${typingUser} está digitando...` : '';
 
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-[#0b141a]">
@@ -404,8 +442,10 @@ export default function ChatDetail() {
             </div>
             <div>
               <h3 className="font-bold text-text-primary text-sm">{chatUser.name}</h3>
-              <p className="text-xs text-text-secondary">
-                {isTyping ? 'Digitando...' : chatUser.isAI ? 'IA • Especialista Imobiliário' : (chatUser.role || 'Online')}
+              <p className="text-xs text-text-secondary transition-all">
+                {isTypingVisible ? (
+                  <span className="text-green-500 font-medium animate-pulse">{typingLabel}</span>
+                ) : chatUser.isAI ? 'IA • Especialista Imobiliário' : (chatUser.role || 'Online')}
               </p>
             </div>
           </div>
@@ -429,7 +469,7 @@ export default function ChatDetail() {
                 <p className="text-sm mt-1 max-w-xs opacity-70">Especialista em financiamento imobiliário. Me conte sobre um cliente e vou analisar o perfil.</p>
               </>
             ) : (
-              <p className="text-sm opacity-60">Nenhuma mensagem ainda. Diga olá!</p>
+              <p className="text-sm opacity-60">Nenhuma mensagem ainda. Diga olá! 👋</p>
             )}
           </div>
         )}
@@ -437,60 +477,65 @@ export default function ChatDetail() {
         {messages.map(msg => (
           <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-lg p-3 shadow-sm ${msg.isMe
-              ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-tr-none'
-              : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-tl-none'
+                ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-tr-none'
+                : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-tl-none'
               }`}>
-
               {msg.type === 'image' && msg.mediaUrl && (
                 <div className="mb-2 cursor-pointer" onClick={() => setFullscreenMedia({ url: msg.mediaUrl!, type: 'image', name: msg.fileName })}>
-                  <img src={msg.mediaUrl} alt="Enviada" className="rounded-lg max-h-60 w-full object-cover" />
+                  <img src={msg.mediaUrl} alt="" className="rounded-lg max-h-60 w-full object-cover" />
                 </div>
               )}
-
+              {msg.type === 'video' && msg.mediaUrl && (
+                <div className="mb-2">
+                  <video src={msg.mediaUrl} controls className="rounded-lg max-h-60 w-full" />
+                </div>
+              )}
               {msg.type === 'audio' && (
                 <div className="flex items-center gap-2 min-w-[200px] py-1 mb-1">
                   <div className="w-10 h-10 rounded-full bg-gold-500 text-white flex items-center justify-center flex-shrink-0">
                     <Mic size={20} />
                   </div>
-                  {msg.mediaUrl ? (
-                    <audio src={msg.mediaUrl} controls className="h-10 w-full" />
-                  ) : (
-                    <div className="h-1 flex-1 bg-gray-300 rounded-full" />
-                  )}
+                  {msg.mediaUrl
+                    ? <audio src={msg.mediaUrl} controls className="h-10 w-full" />
+                    : <div className="h-1 flex-1 bg-gray-300 rounded-full" />}
                 </div>
               )}
-
               {msg.type === 'document' && msg.mediaUrl && (
-                <div
-                  className="flex items-center gap-3 bg-black/5 dark:bg-white/10 p-3 rounded-lg mb-2 cursor-pointer"
-                  onClick={() => setFullscreenMedia({ url: msg.mediaUrl!, type: 'document', name: msg.fileName })}
-                >
+                <div className="flex items-center gap-3 bg-black/5 dark:bg-white/10 p-3 rounded-lg mb-2 cursor-pointer"
+                  onClick={() => setFullscreenMedia({ url: msg.mediaUrl!, type: 'document', name: msg.fileName })}>
                   <FileText size={24} className="text-red-500 flex-shrink-0" />
                   <span className="text-sm truncate max-w-[150px] font-medium">{msg.fileName || 'Documento'}</span>
                 </div>
               )}
-
               {msg.text && (
                 <div className="text-sm leading-relaxed">
-                  {msg.senderId === 'kai-agent' ? (
-                    <ReactMarkdown>{msg.text}</ReactMarkdown>
-                  ) : msg.text}
+                  {msg.senderId === 'kai-agent'
+                    ? <ReactMarkdown>{msg.text}</ReactMarkdown>
+                    : msg.text}
                 </div>
               )}
-
               <span className="text-[10px] text-gray-500 dark:text-gray-400 block text-right mt-1">{msg.timestamp}</span>
             </div>
           </div>
         ))}
 
-        {isTyping && (
+        {isTypingVisible && (
           <div className="flex justify-start">
-            <div className="bg-white dark:bg-[#202c33] rounded-lg rounded-tl-none p-3 shadow-sm">
+            <div className="bg-white dark:bg-[#202c33] rounded-lg rounded-tl-none p-3 shadow-sm flex items-center gap-2">
               <div className="flex gap-1">
                 {[0, 150, 300].map(d => (
                   <span key={d} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
                 ))}
               </div>
+              <span className="text-xs text-text-secondary ml-1">{typingLabel}</span>
+            </div>
+          </div>
+        )}
+
+        {isUploading && (
+          <div className="flex justify-end">
+            <div className="bg-[#D9FDD3] rounded-lg p-3 flex items-center gap-2 text-sm text-gray-600">
+              <Loader2 size={16} className="animate-spin" /> Enviando arquivo...
             </div>
           </div>
         )}
@@ -502,12 +547,8 @@ export default function ChatDetail() {
       <div className="bg-card-bg p-2 flex items-end gap-2 sticky bottom-0 z-20 pb-safe relative">
         <AnimatePresence>
           {showAttachments && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="absolute bottom-16 left-4 bg-card-bg rounded-xl shadow-xl p-4 grid grid-cols-2 gap-4 border border-surface-200"
-            >
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+              className="absolute bottom-16 left-4 bg-card-bg rounded-xl shadow-xl p-4 grid grid-cols-2 gap-4 border border-surface-200">
               <button onClick={() => docInputRef.current?.click()} className="flex flex-col items-center gap-1">
                 <div className="w-12 h-12 rounded-full bg-purple-500 flex items-center justify-center text-white shadow-lg"><FileText size={20} /></div>
                 <span className="text-xs font-medium text-text-secondary">Doc</span>
@@ -540,22 +581,20 @@ export default function ChatDetail() {
                 <div key={i} className="w-1 bg-red-400 rounded-full transition-all duration-75" style={{ height: `${vol}%` }} />
               ))}
             </div>
-            <button onClick={cancelRecording} className="text-red-500 hover:bg-red-100 p-1 rounded-full">
-              <X size={18} />
-            </button>
+            <button onClick={cancelRecording} className="text-red-500 p-1 rounded-full"><X size={18} /></button>
           </div>
         ) : (
           <div className="flex-1 bg-surface-50 dark:bg-surface-200 rounded-2xl px-4 py-2 flex items-center">
             <input
               value={inputValue}
-              onChange={e => setInputValue(e.target.value)}
+              onChange={e => { setInputValue(e.target.value); broadcastTyping(); }}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
               placeholder="Mensagem"
               className="flex-1 bg-transparent border-none outline-none text-text-primary placeholder:text-text-secondary"
             />
             {!isKAI && (
-              <button className="text-text-secondary hover:text-text-primary ml-2">
-                <Camera size={20} onClick={() => startCamera()} />
+              <button className="text-text-secondary hover:text-text-primary ml-2" onClick={() => startCamera()}>
+                <Camera size={20} />
               </button>
             )}
           </div>
@@ -576,7 +615,8 @@ export default function ChatDetail() {
             className="fixed inset-0 z-[200] bg-black flex flex-col">
             <div className="absolute top-0 left-0 right-0 p-4 flex justify-between z-10 bg-gradient-to-b from-black/50 to-transparent">
               <button onClick={stopCamera} className="text-white p-2 rounded-full hover:bg-white/20"><X size={28} /></button>
-              <button onClick={() => { const m = cameraFacingMode === 'user' ? 'environment' : 'user'; setCameraFacingMode(m); startCamera(m); }} className="text-white p-2 rounded-full hover:bg-white/20"><SwitchCamera size={28} /></button>
+              <button onClick={() => { const m = cameraFacingMode === 'user' ? 'environment' : 'user'; setCameraFacingMode(m); startCamera(m); }}
+                className="text-white p-2 rounded-full hover:bg-white/20"><SwitchCamera size={28} /></button>
             </div>
             <div className="flex-1 bg-black flex items-center justify-center overflow-hidden">
               <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
@@ -587,10 +627,12 @@ export default function ChatDetail() {
               )}
             </div>
             <div className="absolute bottom-0 left-0 right-0 pt-12 pb-28 flex justify-center gap-16 bg-gradient-to-t from-black/90 to-transparent">
-              <button onClick={takePhoto} disabled={isRecordingVideo} className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center disabled:opacity-50">
+              <button onClick={takePhoto} disabled={isRecordingVideo}
+                className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center disabled:opacity-50">
                 <div className="w-12 h-12 bg-white rounded-full" />
               </button>
-              <button onClick={isRecordingVideo ? stopVideoRecording : startVideoRecording} className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center">
+              <button onClick={isRecordingVideo ? stopVideoRecording : startVideoRecording}
+                className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center">
                 {isRecordingVideo ? <Square size={24} className="text-red-500 fill-red-500" /> : <Circle size={24} className="text-red-500 fill-red-500" />}
               </button>
             </div>
@@ -608,7 +650,7 @@ export default function ChatDetail() {
               <span className="text-sm font-medium">Pré-visualização</span>
               <div className="w-10" />
             </div>
-            <div className="flex-1 flex items-center justify-center p-4">
+            <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
               {mediaPreview.type === 'image' && <img src={mediaPreview.url} alt="" className="max-w-full max-h-full object-contain rounded-lg" />}
               {mediaPreview.type === 'video' && <video src={mediaPreview.url} controls autoPlay className="max-w-full max-h-full rounded-lg" />}
               {mediaPreview.type === 'document' && (
@@ -647,7 +689,7 @@ export default function ChatDetail() {
               {fullscreenMedia.type === 'document' && (
                 <div className="flex flex-col items-center gap-4 text-white">
                   <FileText size={64} className="text-red-500" />
-                  <p className="text-lg font-medium text-center">{fullscreenMedia.name}</p>
+                  <p className="text-lg font-medium">{fullscreenMedia.name}</p>
                   <button onClick={() => handleDownload(fullscreenMedia.url, fullscreenMedia.name || 'doc.pdf')}
                     className="px-6 py-3 bg-gold-500 text-white rounded-full font-medium flex items-center gap-2">
                     <Download size={20} /> Baixar
