@@ -53,6 +53,7 @@ const AudioMessage = ({ url, isMe }: { url: string; isMe: boolean }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
@@ -162,8 +163,24 @@ const AudioMessage = ({ url, isMe }: { url: string; isMe: boolean }) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = Number(e.target.value);
+    setCurrentTime(time);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+    }
+  };
+
+  const toggleSpeed = () => {
+    const nextRate = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1;
+    setPlaybackRate(nextRate);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextRate;
+    }
+  };
+
   return (
-    <div className={`flex items-center gap-3 min-w-[200px] w-full max-w-[260px] py-1`}>
+    <div className={`flex items-center gap-3 min-w-[220px] w-full max-w-[280px] py-1`}>
       <button
         onClick={togglePlay}
         className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full transition-colors ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gold-500 text-white hover:bg-gold-600'}`}
@@ -171,17 +188,45 @@ const AudioMessage = ({ url, isMe }: { url: string; isMe: boolean }) => {
         {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-1" />}
       </button>
 
-      <div className="flex-1 flex flex-col justify-center overflow-hidden">
+      <div className="flex-1 flex flex-col justify-center relative min-h-[40px]">
+        {/* Visualizer Canvas */}
         <canvas
           ref={canvasRef}
           width={150}
-          height={30}
-          className="w-full h-[30px]"
+          height={24}
+          className="w-full h-[24px] pointer-events-none mt-2"
         />
+
+        {/* Seek Input Overlay */}
+        <input
+          type="range"
+          min={0}
+          max={duration || 100}
+          value={currentTime}
+          onChange={handleSeek}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+        />
+
+        {/* Custom Progress Line (when paused or over visualizer) */}
+        {!isPlaying && duration > 0 && (
+          <div className="absolute top-1/2 left-0 w-full h-1 -mt-0.5 bg-black/10 rounded-full overflow-hidden pointer-events-none">
+            <div
+              className={`h-full ${isMe ? 'bg-white' : 'bg-gold-500'}`}
+              style={{ width: `${(currentTime / duration) * 100}%` }}
+            />
+          </div>
+        )}
+
         <div className="flex justify-between items-center mt-1">
           <span className={`text-[10px] ${isMe ? 'text-white/80' : 'text-gray-500'}`}>
             {isPlaying ? formatTime(currentTime) : formatTime(duration)}
           </span>
+          <button
+            onClick={toggleSpeed}
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-full z-20 relative ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+          >
+            {playbackRate}x
+          </button>
         </div>
       </div>
 
