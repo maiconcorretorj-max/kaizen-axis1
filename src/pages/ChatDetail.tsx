@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, Send, Mic, Image as ImageIcon,
   FileText, Camera, X, MoreVertical, Phone, Plus, Loader2,
-  Download, SwitchCamera, Circle, Square, Bot
+  Download, SwitchCamera, Circle, Square, Bot, Play, Pause
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { sendMessageToKai } from '@/services/kaiAgent';
@@ -46,6 +46,168 @@ function getSupportedVideoMimeType(): string {
   }
   return ''; // let browser decide
 }
+
+// ─── Custom Audio Player with Waveform ──────────────────────────────────────
+const AudioMessage = ({ url, isMe }: { url: string; isMe: boolean }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationRef = useRef<number>(0);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const ctxRef = useRef<AudioContext | null>(null);
+  const initialized = useRef(false);
+
+  // Initialize canvas static
+  useEffect(() => {
+    if (!isPlaying) {
+      drawStatic();
+    }
+  }, [isPlaying]);
+
+  useEffect(() => {
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
+  }, []);
+
+  const drawStatic = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const barCount = 30;
+    const barWidth = (canvas.width / barCount) - 2;
+    ctx.fillStyle = isMe ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)';
+    for (let i = 0; i < barCount; i++) {
+      const barHeight = 4 + (i % 3 === 0 ? 4 : 0);
+      const x = i * (barWidth + 2);
+      const y = canvas.height / 2 - barHeight / 2;
+      ctx.beginPath();
+      ctx.roundRect(x, y, barWidth, barHeight, 2);
+      ctx.fill();
+    }
+  };
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      if (!initialized.current) {
+        try {
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+          const audioCtx = new AudioCtx();
+          ctxRef.current = audioCtx;
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 64;
+          const source = audioCtx.createMediaElementSource(audioRef.current);
+          source.connect(analyser);
+          analyser.connect(audioCtx.destination);
+          analyserRef.current = analyser;
+          initialized.current = true;
+        } catch (e) {
+          console.warn('AudioContext not supported or failed cross-origin.', e);
+        }
+      }
+      if (ctxRef.current?.state === 'suspended') {
+        ctxRef.current.resume();
+      }
+      audioRef.current.play().catch(console.error);
+    }
+  };
+
+  const drawVisualizer = () => {
+    if (!analyserRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const bufferLength = analyserRef.current.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const drawFrame = () => {
+      if (!isPlaying) return;
+      animationRef.current = requestAnimationFrame(drawFrame);
+      analyserRef.current!.getByteFrequencyData(dataArray);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const barCount = 30;
+      const barWidth = (canvas.width / barCount) - 2;
+      const step = Math.floor(bufferLength / barCount);
+
+      for (let i = 0; i < barCount; i++) {
+        const value = dataArray[i * step] || 0;
+        const percent = value / 255;
+        const barHeight = Math.max(4, percent * canvas.height * 0.8);
+
+        ctx.fillStyle = isMe ? '#ffffff' : '#128C7E';
+        ctx.beginPath();
+        const x = i * (barWidth + 2);
+        const y = canvas.height / 2 - barHeight / 2;
+        ctx.roundRect(x, y, barWidth, barHeight, 2);
+        ctx.fill();
+      }
+    };
+    drawFrame();
+  };
+
+  const formatTime = (secs: number) => {
+    if (isNaN(secs)) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className={`flex items-center gap-3 min-w-[200px] w-full max-w-[260px] py-1`}>
+      <button
+        onClick={togglePlay}
+        className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full transition-colors ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gold-500 text-white hover:bg-gold-600'}`}
+      >
+        {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-1" />}
+      </button>
+
+      <div className="flex-1 flex flex-col justify-center overflow-hidden">
+        <canvas
+          ref={canvasRef}
+          width={150}
+          height={30}
+          className="w-full h-[30px]"
+        />
+        <div className="flex justify-between items-center mt-1">
+          <span className={`text-[10px] ${isMe ? 'text-white/80' : 'text-gray-500'}`}>
+            {isPlaying ? formatTime(currentTime) : formatTime(duration)}
+          </span>
+        </div>
+      </div>
+
+      <audio
+        ref={audioRef}
+        src={url}
+        crossOrigin="anonymous"
+        onPlay={() => {
+          setIsPlaying(true);
+          drawVisualizer();
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+          if (animationRef.current) cancelAnimationFrame(animationRef.current);
+        }}
+        onEnded={() => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+          if (animationRef.current) cancelAnimationFrame(animationRef.current);
+        }}
+        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+      />
+    </div>
+  );
+};
+
 
 export default function ChatDetail() {
   const { id } = useParams<{ id: string }>();
@@ -550,50 +712,52 @@ export default function ChatDetail() {
           </div>
         )}
 
-        {messages.map(msg => (
-          <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-lg p-3 shadow-sm ${msg.isMe
-              ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-tr-none'
-              : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-tl-none'
-              }`}>
-              {msg.type === 'image' && msg.mediaUrl && (
-                <div className="mb-2 cursor-pointer" onClick={() => setFullscreenMedia({ url: msg.mediaUrl!, type: 'image', name: msg.fileName })}>
-                  <img src={msg.mediaUrl} alt="" className="rounded-lg max-h-60 w-full object-cover" />
-                </div>
-              )}
-              {msg.type === 'video' && msg.mediaUrl && (
-                <div className="mb-2">
-                  <video src={msg.mediaUrl} controls className="rounded-lg max-h-60 w-full" playsInline />
-                </div>
-              )}
-              {msg.type === 'audio' && (
-                <div className="flex items-center gap-2 min-w-[200px] py-1 mb-1">
-                  <div className="w-10 h-10 rounded-full bg-gold-500 text-white flex items-center justify-center flex-shrink-0">
-                    <Mic size={20} />
+        {messages.map(msg => {
+          const isMediaOnly = ['image', 'video'].includes(msg.type) && !msg.text;
+          return (
+            <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] relative shadow-sm ${msg.isMe
+                  ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-2xl rounded-tr-none'
+                  : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-2xl rounded-tl-none'
+                } ${isMediaOnly ? 'p-1 pb-6' : 'p-3'}`}>
+
+                {msg.type === 'image' && msg.mediaUrl && (
+                  <div className={`${!isMediaOnly ? 'mb-2' : ''} cursor-pointer`} onClick={() => setFullscreenMedia({ url: msg.mediaUrl!, type: 'image', name: msg.fileName })}>
+                    <img src={msg.mediaUrl} alt="" className={`${isMediaOnly ? 'rounded-xl' : 'rounded-lg'} max-h-72 w-full object-cover`} />
                   </div>
-                  {msg.mediaUrl
-                    ? <audio src={msg.mediaUrl} controls className="h-10 w-full" />
-                    : <div className="h-1 flex-1 bg-gray-300 rounded-full" />}
-                </div>
-              )}
-              {msg.type === 'document' && msg.mediaUrl && (
-                <div className="flex items-center gap-3 bg-black/5 dark:bg-white/10 p-3 rounded-lg mb-2 cursor-pointer"
-                  onClick={() => setFullscreenMedia({ url: msg.mediaUrl!, type: 'document', name: msg.fileName })}>
-                  <FileText size={24} className="text-red-500 flex-shrink-0" />
-                  <span className="text-sm truncate max-w-[150px] font-medium">{msg.fileName || 'Documento'}</span>
-                </div>
-              )}
-              {msg.text && (
-                <div className="text-sm leading-relaxed">
-                  {msg.senderId === 'kai-agent'
-                    ? <ReactMarkdown>{msg.text}</ReactMarkdown>
-                    : msg.text}
-                </div>
-              )}
-              <span className="text-[10px] text-gray-500 dark:text-gray-400 block text-right mt-1">{msg.timestamp}</span>
+                )}
+                {msg.type === 'video' && msg.mediaUrl && (
+                  <div className={`${!isMediaOnly ? 'mb-2' : ''}`}>
+                    <video src={msg.mediaUrl} controls className={`${isMediaOnly ? 'rounded-xl' : 'rounded-lg'} max-h-72 w-full`} playsInline />
+                  </div>
+                )}
+                {msg.type === 'audio' && msg.mediaUrl && (
+                  <AudioMessage url={msg.mediaUrl} isMe={msg.isMe} />
+                )}
+                {msg.type === 'document' && msg.mediaUrl && (
+                  <div className="flex items-center gap-3 bg-black/5 dark:bg-white/10 p-3 rounded-xl mb-2 cursor-pointer"
+                    onClick={() => setFullscreenMedia({ url: msg.mediaUrl!, type: 'document', name: msg.fileName })}>
+                    <FileText size={24} className="text-red-500 flex-shrink-0" />
+                    <span className="text-sm truncate max-w-[150px] font-medium">{msg.fileName || 'Documento'}</span>
+                  </div>
+                )}
+                {msg.text && (
+                  <div className={`text-sm leading-relaxed ${['image', 'video'].includes(msg.type) ? 'px-1 pt-1' : ''}`}>
+                    {msg.senderId === 'kai-agent'
+                      ? <ReactMarkdown>{msg.text}</ReactMarkdown>
+                      : msg.text}
+                  </div>
+                )}
+                <span className={`text-[10px] block text-right mt-1 ${isMediaOnly
+                    ? 'absolute bottom-1.5 right-2 text-white/95 drop-shadow-md bg-black/40 px-2 py-0.5 rounded-full backdrop-blur-sm'
+                    : msg.isMe ? 'text-green-800/80 dark:text-white/60' : 'text-gray-500 dark:text-gray-400'
+                  }`}>
+                  {msg.timestamp}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {isTypingVisible && (
           <div className="flex justify-start">
