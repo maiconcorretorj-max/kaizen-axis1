@@ -2,15 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PremiumCard, RoundedButton, SectionHeader } from '@/components/ui/PremiumComponents';
 import { ChevronLeft, Send, Paperclip, FileText, X, Loader2 } from 'lucide-react';
-
 import { Client } from '@/data/clients';
 import { EmailInput } from '@/components/ui/EmailInput';
 import { useApp } from '@/context/AppContext';
 
+interface Attachment {
+  name: string;
+  file_path?: string; // Supabase Storage path
+  file?: File;       // manually added file
+}
+
 export default function SendEmail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getClient, userName } = useApp();
+  const { getClient, userName, getDownloadUrl } = useApp();
   const [client, setClient] = useState<Client | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -19,7 +24,7 @@ export default function SendEmail() {
   const [bcc, setBcc] = useState<string[]>([]);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [attachments, setAttachments] = useState<{ name: string, type: string }[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
@@ -52,11 +57,36 @@ CORRETORA: ${userName} - COORDENADOR: THALITA BELLO - GERENTE: MARVYN LANDES`;
 
       setBody(template);
 
-      if (found.documents) {
-        setAttachments(found.documents.map(d => ({ name: d.name, type: 'pdf' })));
+      // Auto-populate with client's uploaded documents
+      if (found.documents && found.documents.length > 0) {
+        setAttachments(found.documents.map((d: any) => ({
+          name: d.name,
+          file_path: d.file_path
+        })));
       }
     }
   }, [id, getClient, userName]);
+
+  // Convert a URL or File to base64 string
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Strip the data URL prefix (e.g., "data:application/pdf;base64,")
+        resolve(result.split(',')[1]);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const urlToBase64 = async (url: string): Promise<string> => {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const file = new File([blob], 'attachment');
+    return fileToBase64(file);
+  };
 
   const handleSend = async () => {
     if (to.length === 0) {
@@ -66,9 +96,37 @@ CORRETORA: ${userName} - COORDENADOR: THALITA BELLO - GERENTE: MARVYN LANDES`;
 
     setIsSending(true);
     try {
-      // Call the edge function directly via fetch (avoids Supabase auth header issues)
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
       const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      // Build base64 attachments
+      const resendAttachments: { filename: string; content: string }[] = [];
+
+      for (const att of attachments) {
+        try {
+          let base64Content: string | null = null;
+
+          if (att.file) {
+            // Manually added file
+            base64Content = await fileToBase64(att.file);
+          } else if (att.file_path) {
+            // Document from Supabase Storage — get signed URL then fetch
+            const signedUrl = await getDownloadUrl(att.file_path);
+            if (signedUrl) {
+              base64Content = await urlToBase64(signedUrl);
+            }
+          }
+
+          if (base64Content) {
+            resendAttachments.push({
+              filename: att.name,
+              content: base64Content,
+            });
+          }
+        } catch (e) {
+          console.warn(`Falha ao carregar anexo "${att.name}":`, e);
+        }
+      }
 
       const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
         method: 'POST',
@@ -82,6 +140,7 @@ CORRETORA: ${userName} - COORDENADOR: THALITA BELLO - GERENTE: MARVYN LANDES`;
           bcc,
           subject,
           text: body,
+          attachments: resendAttachments,
         }),
       });
 
@@ -100,7 +159,7 @@ CORRETORA: ${userName} - COORDENADOR: THALITA BELLO - GERENTE: MARVYN LANDES`;
         throw new Error(resendMsg);
       }
 
-      alert('Email enviado com sucesso! ✅');
+      alert(`Email enviado com sucesso! ✅\n${resendAttachments.length} anexo(s) incluído(s).`);
       navigate(-1);
     } catch (error: any) {
       console.error('Erro ao enviar e-mail:', error);
@@ -114,14 +173,11 @@ CORRETORA: ${userName} - COORDENADOR: THALITA BELLO - GERENTE: MARVYN LANDES`;
     if (e.target.files) {
       const newFiles = Array.from(e.target.files).map(file => ({
         name: file.name,
-        type: 'pdf' // In a real app we'd check file.type
+        file,
       }));
       setAttachments(prev => [...prev, ...newFiles]);
     }
-    // Reset input so same file can be selected again if needed
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   if (!client) return <div className="p-6">Carregando...</div>;
@@ -209,7 +265,7 @@ CORRETORA: ${userName} - COORDENADOR: THALITA BELLO - GERENTE: MARVYN LANDES`;
                 type="file"
                 ref={fileInputRef}
                 className="hidden"
-                accept="application/pdf"
+                accept="application/pdf,image/*"
                 multiple
                 onChange={handleFileChange}
               />
@@ -222,6 +278,9 @@ CORRETORA: ${userName} - COORDENADOR: THALITA BELLO - GERENTE: MARVYN LANDES`;
                     <FileText size={12} />
                   </div>
                   <span className="text-xs font-medium text-text-primary truncate max-w-[150px]">{file.name}</span>
+                  {file.file_path && (
+                    <span className="text-[10px] text-text-secondary">(storage)</span>
+                  )}
                   <button
                     onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                     className="text-text-secondary hover:text-red-500 ml-1"
