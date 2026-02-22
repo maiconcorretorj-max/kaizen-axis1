@@ -1,0 +1,8 @@
+{
+  "name": "Kaizen Axis",
+  "description": "Kaizen Axis\n\nO Kaizen Axis é o eixo central da operação imobiliária da Kaizen Soluções Imobiliárias. Mais do que um CRM, é uma plataforma estratégica de gestão, inteligência comercial e governança corporativa.\n\nDesenvolvido para integrar equipes, dados e decisões em um único ambiente, o Kaizen Axis transforma a rotina operacional em performance estruturada. Através de módulos como Business Intelligence, Forecast de vendas, Health Score de clientes, Painel Administrativo e gestão de metas, o sistema oferece visão clara, controle total e previsibilidade de resultados.\n\nCom arquitetura moderna e foco em melhoria contínua, o Kaizen Axis conecta corretores, coordenadores, gerentes e diretores em um ecossistema inteligente, onde cada ação é orientada por dados e cada meta é acompanhada com precisão.\n\nNão é apenas um sistema de gestão.\nÉ o centro estratégico da operação.\nÉ o eixo que sustenta o crescimento.\n\nKaizen Axis — inteligência que direciona resultados.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}

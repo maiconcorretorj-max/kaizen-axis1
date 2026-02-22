@@ -1,0 +1,74 @@
+import { useState } from 'react';
+import { PremiumCard, SectionHeader, RoundedButton } from '@/components/ui/PremiumComponents';
+import { Building2, CheckSquare, GraduationCap, Calculator, Settings, ChevronRight, LogOut, User, Camera, Shield, Trash2, BarChart3, Lock, FileType, Globe } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Modal } from '@/components/ui/Modal';
+
+const menuItems = [
+  { icon: Building2, label: 'Empreendimentos', path: '/developments', desc: 'Catálogo completo' },
+  { icon: Globe, label: 'Portais', path: '/portals', desc: 'Caixa e Construtoras' },
+  { icon: Calculator, label: 'Apuração de Renda', path: '/income', desc: 'Análise de crédito' },
+  { icon: Calculator, label: 'Amortização', path: '/amortization', desc: 'Simulador Caixa Econômica' },
+  { icon: BarChart3, label: 'Relatórios', path: '/reports', desc: 'Inteligência e Forecast' },
+  { icon: FileType, label: 'Conversor de PDF', path: '/pdf-tools', desc: 'Ferramentas de documentos' },
+  { icon: CheckSquare, label: 'Tarefas', path: '/tasks', desc: 'Minhas pendências' },
+  { icon: GraduationCap, label: 'Treinamentos', path: '/training', desc: 'Universidade corporativa' },
+  { icon: Settings, label: 'Configurações', path: '/settings', desc: 'Preferências do app' },
+];
+
+export default function More() {
+  const navigate = useNavigate();
+
+  const USER_ROLE = localStorage.getItem('userRole') || 'Corretor Senior';
+
+  const handleLogout = () => {
+    if (confirm('Tem certeza que deseja sair?')) {
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('hasCompletedOnboarding');
+      localStorage.removeItem('userName');
+      localStorage.removeItem('userRole');
+      navigate('/login');
+    }
+  };
+
+  return (
+    <div className="p-6 pb-24 min-h-screen bg-surface-50">
+      <SectionHeader title="Menu" />
+
+      {/* Admin Panel Link */}
+      <div className="mb-6">
+        <h3 className="text-xs font-bold text-text-secondary uppercase mb-2 px-2">Administrativo</h3>
+        <PremiumCard
+          className="flex items-center gap-4 p-4 bg-gradient-to-r from-gray-900 to-gray-800 text-white border-none cursor-pointer"
+          onClick={() => navigate('/admin')}
+        >
+          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
+            <Lock size={20} className="text-gold-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-bold text-white">Painel Administrativo</h3>
+            <p className="text-xs text-gray-300">Governança e Controle</p>
+          </div>
+          <ChevronRight size={20} className="text-gray-400" />
+        </PremiumCard>
+      </div>
+
+      <div className="space-y-3">
+        {menuItems.map((item) => (
+          <Link key={item.path} to={item.path}>
+            <PremiumCard className="flex items-center gap-4 hover:bg-surface-50 dark:hover:bg-surface-100/10 transition-colors py-4">
+              <div className="w-10 h-10 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary">
+                <item.icon size={20} />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-text-primary">{item.label}</h4>
+                <p className="text-xs text-text-secondary">{item.desc}</p>
+              </div>
+              <ChevronRight size={18} className="text-surface-300" />
+            </PremiumCard>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}

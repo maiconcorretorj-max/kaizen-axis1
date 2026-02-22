@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-gold-50: #F9F5E8;
+  --color-gold-100: #F0E6C8;
+  --color-gold-200: #E6D4A3;
+  --color-gold-300: #DCC27E;
+  --color-gold-400: #D4AF37; /* Primary Gold */
+  --color-gold-500: #B8962E;
+  --color-gold-600: #9C7E26;
+  --color-gold-700: #80661F;
+  --color-gold-800: #665018;
+  --color-gold-900: #4D3C12;
+
+  --color-surface-50: var(--bg-app);
+  --color-surface-100: var(--bg-subtle);
+  --color-surface-200: var(--border-subtle);
+  --color-surface-300: var(--border-strong);
+  
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-card-bg: var(--bg-card);
+}
+
+:root {
+  --bg-app: #FAFAFA;
+  --bg-card: #FFFFFF;
+  --bg-subtle: #F3F4F6;
+  --border-subtle: #E5E7EB;
+  --border-strong: #D1D5DB;
+  --text-primary: #1A1A1A;
+  --text-secondary: #6B7280;
+}
+
+:root.dark {
+  --bg-app: #0A0A0A;
+  --bg-card: #141414;
+  --bg-subtle: #1F1F1F;
+  --border-subtle: #2A2A2A;
+  --border-strong: #404040;
+  --text-primary: #F9FAFB;
+  --text-secondary: #9CA3AF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --bg-app: #0A0A0A;
+    --bg-card: #141414;
+    --bg-subtle: #1F1F1F;
+    --border-subtle: #2A2A2A;
+    --border-strong: #404040;
+    --text-primary: #F9FAFB;
+    --text-secondary: #9CA3AF;
+  }
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbar for horizontal scrolling areas */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Markdown Styles for AI Chat */
+.markdown-body ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.markdown-body ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.markdown-body strong {
+  font-weight: 600;
+}
+
+.markdown-body p {
+  margin-bottom: 0.5em;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  font-weight: 700;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}

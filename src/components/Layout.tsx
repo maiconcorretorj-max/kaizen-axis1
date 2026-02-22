@@ -1,0 +1,70 @@
+import React from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Users, Calendar, MessageSquare, Menu, Plus } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { motion } from 'motion/react';
+
+export const BottomNav = () => {
+  const location = useLocation();
+  
+  const navItems = [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: Users, label: 'Clientes', path: '/clients' },
+    { icon: Calendar, label: 'Agenda', path: '/schedule' },
+    { icon: MessageSquare, label: 'Chat', path: '/chat' },
+    { icon: Menu, label: 'Mais', path: '/more' },
+  ];
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-card-bg border-t border-surface-200 pb-safe pt-2 px-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
+      <div className="flex justify-between items-center max-w-md mx-auto">
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) => cn(
+                "flex flex-col items-center justify-center p-2 rounded-xl transition-all duration-300 w-16",
+                isActive ? "text-gold-600 dark:text-gold-400" : "text-text-secondary hover:text-text-primary"
+              )}
+            >
+              <div className="relative">
+                <item.icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                {isActive && (
+                  <motion.div
+                    layoutId="nav-indicator"
+                    className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-gold-500"
+                  />
+                )}
+              </div>
+              <span className="text-[10px] font-medium mt-1">{item.label}</span>
+            </NavLink>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export const Layout = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <div className="min-h-screen bg-surface-50 pb-24 max-w-md mx-auto shadow-2xl shadow-black/5 overflow-hidden relative">
+      <main className="h-full overflow-y-auto no-scrollbar">
+        {children}
+      </main>
+      <BottomNav />
+    </div>
+  );
+};
+
+export const FAB = ({ onClick, icon: Icon = Plus }: { onClick?: () => void, icon?: React.ElementType }) => (
+  <motion.button
+    whileHover={{ scale: 1.05 }}
+    whileTap={{ scale: 0.95 }}
+    onClick={onClick}
+    className="fixed bottom-24 right-6 w-14 h-14 bg-gold-400 text-white rounded-full shadow-lg shadow-gold-400/30 flex items-center justify-center z-40 cursor-pointer"
+  >
+    <Icon size={24} />
+  </motion.button>
+);
