@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PremiumCard, RoundedButton, SectionHeader } from '@/components/ui/PremiumComponents';
 import { ChevronLeft, Send, Paperclip, FileText, X, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+
 import { Client } from '@/data/clients';
 import { EmailInput } from '@/components/ui/EmailInput';
 import { useApp } from '@/context/AppContext';
@@ -66,17 +66,35 @@ CORRETORA: ${userName} - COORDENADOR: THALITA BELLO - GERENTE: MARVYN LANDES`;
 
     setIsSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke('send-email', {
-        body: {
+      // Call the edge function directly via fetch (avoids Supabase auth header issues)
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
           to,
           cc,
           bcc,
           subject,
           text: body,
-        },
+        }),
       });
 
-      if (error) throw error;
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.resend_message || data.error || `Erro ${res.status}`);
+      }
+
+      if (data.resend_message) {
+        // Function returned 200 but Resend had an error
+        throw new Error(`Resend: ${data.resend_message}`);
+      }
 
       alert('Email enviado com sucesso!');
       navigate(-1);
