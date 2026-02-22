@@ -560,11 +560,12 @@ export default function ChatDetail() {
       }
 
       // On iOS Safari, the resulting blob is often video/mp4 even if we didn't specify it
-      const actualMimeType = videoChunksRef.current[0].type || mimeType || 'video/mp4';
-      const blob = new Blob(videoChunksRef.current, { type: actualMimeType });
+      const actualMimeType = videoChunksRef.current[0]?.type || mimeType || 'video/mp4';
+      const cleanMimeType = actualMimeType.split(';')[0];
+      const blob = new Blob(videoChunksRef.current, { type: cleanMimeType });
 
-      const ext = actualMimeType.includes('mp4') ? 'mp4' : 'webm';
-      const file = new File([blob], `video_${Date.now()}.${ext}`, { type: blob.type });
+      const ext = cleanMimeType.includes('mp4') ? 'mp4' : 'webm';
+      const file = new File([blob], `video_${Date.now()}.${ext}`, { type: cleanMimeType });
       setMediaPreview({ url: URL.createObjectURL(file), type: 'video', file });
       stopCamera();
     };
@@ -604,9 +605,10 @@ export default function ChatDetail() {
       recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
         const actualMimeType = audioChunksRef.current[0]?.type || mimeType || 'audio/mp4';
-        const ext = actualMimeType.includes('mp4') || actualMimeType.includes('aac') ? 'm4a' : 'webm';
-        const blob = new Blob(audioChunksRef.current, { type: actualMimeType });
-        const file = new File([blob], `audio_${Date.now()}.${ext}`, { type: actualMimeType });
+        const cleanMimeType = actualMimeType.split(';')[0];
+        const ext = cleanMimeType.includes('mp4') || cleanMimeType.includes('aac') ? 'm4a' : 'webm';
+        const blob = new Blob(audioChunksRef.current, { type: cleanMimeType });
+        const file = new File([blob], `audio_${Date.now()}.${ext}`, { type: cleanMimeType });
         stream.getTracks().forEach(t => t.stop());
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
         audioContextRef.current?.close();
