@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, Send, Mic, Image as ImageIcon,
   FileText, Camera, X, MoreVertical, Phone, Plus, Loader2,
-  Download, SwitchCamera, Circle, Square, Bot, Play, Pause
+  Download, SwitchCamera, Circle, Square, Bot, Play, Pause,
+  Maximize, Volume2, VolumeX, PictureInPicture
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { sendMessageToKai } from '@/services/kaiAgent';
@@ -584,13 +585,28 @@ export default function ChatDetail() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const mimeType = (() => {
+        try {
+          if (MediaRecorder.isTypeSupported('audio/mp4')) return 'audio/mp4';
+        } catch { /* ignore */ }
+        try {
+          if (MediaRecorder.isTypeSupported('audio/webm')) return 'audio/webm';
+        } catch { /* ignore */ }
+        return '';
+      })();
+
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
       recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const file = new File([blob], `audio_${Date.now()}.webm`, { type: 'audio/webm' });
+        const actualMimeType = audioChunksRef.current[0]?.type || mimeType || 'audio/mp4';
+        const ext = actualMimeType.includes('mp4') || actualMimeType.includes('aac') ? 'm4a' : 'webm';
+        const blob = new Blob(audioChunksRef.current, { type: actualMimeType });
+        const file = new File([blob], `audio_${Date.now()}.${ext}`, { type: actualMimeType });
         stream.getTracks().forEach(t => t.stop());
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
         audioContextRef.current?.close();
@@ -717,8 +733,8 @@ export default function ChatDetail() {
           return (
             <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] relative shadow-sm ${msg.isMe
-                  ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-2xl rounded-tr-none'
-                  : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-2xl rounded-tl-none'
+                ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-2xl rounded-tr-none'
+                : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-2xl rounded-tl-none'
                 } ${isMediaOnly ? 'p-1 pb-6' : 'p-3'}`}>
 
                 {msg.type === 'image' && msg.mediaUrl && (
@@ -749,8 +765,8 @@ export default function ChatDetail() {
                   </div>
                 )}
                 <span className={`text-[10px] block text-right mt-1 ${isMediaOnly
-                    ? 'absolute bottom-1.5 right-2 text-white/95 drop-shadow-md bg-black/40 px-2 py-0.5 rounded-full backdrop-blur-sm'
-                    : msg.isMe ? 'text-green-800/80 dark:text-white/60' : 'text-gray-500 dark:text-gray-400'
+                  ? 'absolute bottom-1.5 right-2 text-white/95 drop-shadow-md bg-black/40 px-2 py-0.5 rounded-full backdrop-blur-sm'
+                  : msg.isMe ? 'text-green-800/80 dark:text-white/60' : 'text-gray-500 dark:text-gray-400'
                   }`}>
                   {msg.timestamp}
                 </span>
