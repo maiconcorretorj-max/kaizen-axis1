@@ -2,35 +2,36 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PremiumCard, RoundedButton, SectionHeader, StatusBadge } from '@/components/ui/PremiumComponents';
 import { ChevronLeft, MapPin, Building2, DollarSign, FileText, PlayCircle, Phone, Share2, Download, MessageCircle, X, ChevronRight } from 'lucide-react';
-import { MOCK_DEVELOPMENTS, Development } from '@/data/developments';
 import { Modal } from '@/components/ui/Modal';
+import { useApp, Development } from '@/context/AppContext';
 
 export default function DevelopmentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { developments } = useApp();
   const [development, setDevelopment] = useState<Development | null>(null);
   const [activeImage, setActiveImage] = useState(0);
-  
+
   // Lightbox State
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxType, setLightboxType] = useState<'image' | 'video'>('image');
 
   useEffect(() => {
-    const found = MOCK_DEVELOPMENTS.find(d => d.id === id);
+    const found = developments.find(d => d.id === id);
     if (found) setDevelopment(found);
-  }, [id]);
+  }, [id, developments]);
 
   const handleOpenBook = () => {
-    if (development?.bookPdfUrl) {
-      window.open(development.bookPdfUrl, '_blank');
+    if (development?.book_pdf_url) {
+      window.open(development.book_pdf_url, '_blank');
     } else {
       alert('Book digital indisponível para este empreendimento.');
     }
   };
 
   const handleWhatsApp = () => {
-    if (development?.contact.phone) {
+    if (development?.contact?.phone) {
       const phone = development.contact.phone.replace(/\D/g, '');
       window.open(`https://wa.me/55${phone}`, '_blank');
     }
@@ -49,7 +50,7 @@ export default function DevelopmentDetails() {
     const totalItems = hasVideo ? totalImages + 1 : totalImages;
 
     let nextIndex = lightboxIndex + 1;
-    
+
     if (nextIndex >= totalItems) {
       nextIndex = 0;
     }
@@ -60,7 +61,7 @@ export default function DevelopmentDetails() {
     } else {
       setLightboxType('image');
     }
-    
+
     setLightboxIndex(nextIndex);
   };
 
@@ -85,26 +86,34 @@ export default function DevelopmentDetails() {
     setLightboxIndex(prevIndex);
   };
 
-  if (!development) return <div className="p-6">Carregando...</div>;
+  if (!development) return (
+    <div className="p-6 flex items-center justify-center min-h-screen">
+      <div className="text-center text-text-secondary">
+        <Building2 size={48} className="mx-auto mb-3 opacity-30" />
+        <p>Empreendimento não encontrado.</p>
+        <button onClick={() => navigate(-1)} className="mt-4 text-gold-500 text-sm">Voltar</button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-surface-50 pb-24">
       {/* Header Image & Nav */}
       <div className="relative h-72 w-full group cursor-pointer" onClick={() => openLightbox(activeImage)}>
-        <img 
-          src={development.images[activeImage]} 
-          alt={development.name} 
+        <img
+          src={development.images[activeImage]}
+          alt={development.name}
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-surface-50" />
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
-           <span className="bg-black/50 text-white px-4 py-2 rounded-full text-sm backdrop-blur-sm">Ver em tela cheia</span>
+          <span className="bg-black/50 text-white px-4 py-2 rounded-full text-sm backdrop-blur-sm">Ver em tela cheia</span>
         </div>
-        
+
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10" onClick={(e) => e.stopPropagation()}>
-          <button 
-            onClick={() => navigate(-1)} 
+          <button
+            onClick={() => navigate(-1)}
             className="p-2 rounded-full bg-black/20 backdrop-blur-md text-white hover:bg-black/40 transition-colors"
           >
             <ChevronLeft size={24} />
@@ -117,7 +126,7 @@ export default function DevelopmentDetails() {
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-6">
-          <StatusBadge status={development.status} className="mb-2 bg-white/90 dark:bg-black/80 backdrop-blur-sm shadow-sm border-none" />
+          <StatusBadge status={development.status || ''} className="mb-2 bg-white/90 dark:bg-black/80 backdrop-blur-sm shadow-sm border-none" />
           <h1 className="text-3xl font-bold text-text-primary mb-1">{development.name}</h1>
           <p className="text-text-secondary flex items-center gap-1 text-sm">
             <Building2 size={14} /> {development.builder}
@@ -127,29 +136,17 @@ export default function DevelopmentDetails() {
 
       {/* Gallery Thumbs */}
       <div className="px-6 -mt-4 mb-6 flex gap-2 overflow-x-auto no-scrollbar relative z-10">
-        {development.images.map((img, idx) => (
-          <button 
+        {(development.images || []).map((img, idx) => (
+          <button
             key={idx}
-            onClick={() => {
-              setActiveImage(idx);
-              // Optional: Open lightbox on double click or just select
-            }}
+            onClick={() => setActiveImage(idx)}
             onDoubleClick={() => openLightbox(idx)}
-            className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${
-              activeImage === idx ? 'border-gold-400 scale-105 shadow-md' : 'border-transparent opacity-70'
-            }`}
+            className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${activeImage === idx ? 'border-gold-400 scale-105 shadow-md' : 'border-transparent opacity-70'
+              }`}
           >
             <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
           </button>
         ))}
-        {development.videoUrl && (
-          <button 
-            onClick={() => openLightbox(development.images.length, 'video')}
-            className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-black flex items-center justify-center border-2 border-transparent opacity-70 hover:opacity-100"
-          >
-            <PlayCircle className="text-white" size={24} />
-          </button>
-        )}
       </div>
 
       <div className="px-6 space-y-8">
@@ -163,7 +160,7 @@ export default function DevelopmentDetails() {
           <PremiumCard className="flex flex-col justify-center items-center text-center py-4">
             <Building2 className="text-gold-500 mb-2" size={24} />
             <p className="text-[10px] text-text-secondary uppercase tracking-wider">Renda Ideal</p>
-            <p className="text-sm font-bold text-text-primary">{development.minIncome}</p>
+            <p className="text-sm font-bold text-text-primary">{development.min_income}</p>
           </PremiumCard>
         </section>
 
@@ -173,9 +170,9 @@ export default function DevelopmentDetails() {
           <p className="text-text-secondary leading-relaxed text-sm">
             {development.description}
           </p>
-          
+
           <div className="grid grid-cols-2 gap-3 mt-4">
-            {development.differentials.map((item, idx) => (
+            {(development.differentials || []).map((item, idx) => (
               <div key={idx} className="flex items-start gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-gold-400 mt-1.5 flex-shrink-0" />
                 <span className="text-sm text-text-primary">{item}</span>
@@ -190,13 +187,13 @@ export default function DevelopmentDetails() {
           <PremiumCard className="p-0 overflow-hidden">
             {/* Map */}
             <div className="h-40 bg-surface-200 relative flex items-center justify-center group cursor-pointer" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(development.address)}`, '_blank')}>
-              <iframe 
-                width="100%" 
-                height="100%" 
-                frameBorder="0" 
-                scrolling="no" 
-                marginHeight={0} 
-                marginWidth={0} 
+              <iframe
+                width="100%"
+                height="100%"
+                frameBorder="0"
+                scrolling="no"
+                marginHeight={0}
+                marginWidth={0}
                 src={`https://maps.google.com/maps?q=${encodeURIComponent(development.address)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
                 className="w-full h-full opacity-80 group-hover:opacity-100 transition-opacity"
                 title="Mapa"
@@ -216,7 +213,7 @@ export default function DevelopmentDetails() {
 
         {/* Book PDF */}
         <section>
-          <PremiumCard 
+          <PremiumCard
             className="flex items-center justify-between bg-gray-900 dark:bg-white text-white dark:text-black cursor-pointer hover:opacity-90 transition-opacity"
             onClick={handleOpenBook}
           >
@@ -236,44 +233,40 @@ export default function DevelopmentDetails() {
         </section>
 
         {/* Contact */}
-        <section className="space-y-4">
-          <SectionHeader title="Viabilizador Responsável" />
-          <PremiumCard className="flex items-center gap-4">
-            <img 
-              src={development.contact.avatar} 
-              alt={development.contact.name} 
-              className="w-14 h-14 rounded-full object-cover border-2 border-surface-100"
-              referrerPolicy="no-referrer"
-            />
-            <div className="flex-1">
-              <h4 className="font-bold text-text-primary">{development.contact.name}</h4>
-              <p className="text-xs text-text-secondary">{development.contact.role}</p>
-              <p className="text-xs text-gold-600 dark:text-gold-400 font-medium mt-0.5">{development.builder}</p>
-            </div>
-          </PremiumCard>
-          
-          <div className="grid grid-cols-2 gap-3">
-            <RoundedButton 
-              className="w-full flex items-center justify-center gap-2"
-              onClick={() => window.open(`tel:${development.contact.phone.replace(/\D/g, '')}`)}
-            >
-              <Phone size={18} /> Ligar
-            </RoundedButton>
-            <RoundedButton 
-              variant="outline" 
-              className="w-full flex items-center justify-center gap-2 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
-              onClick={handleWhatsApp}
-            >
-              <MessageCircle size={18} /> WhatsApp
-            </RoundedButton>
-          </div>
-        </section>
+        {development.contact && (development.contact.name || development.contact.phone) && (
+          <section className="space-y-4">
+            <SectionHeader title="Viabilizador Responsável" />
+            <PremiumCard className="flex items-center gap-4">
+              {development.contact.avatar ? (
+                <img src={development.contact.avatar} alt={development.contact.name} className="w-14 h-14 rounded-full object-cover border-2 border-surface-100" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-surface-200 flex items-center justify-center text-text-secondary font-bold text-xl">{(development.contact.name || '?').charAt(0)}</div>
+              )}
+              <div className="flex-1">
+                <h4 className="font-bold text-text-primary">{development.contact.name}</h4>
+                <p className="text-xs text-text-secondary">{development.contact.role}</p>
+                <p className="text-xs text-gold-600 dark:text-gold-400 font-medium mt-0.5">{development.builder}</p>
+              </div>
+            </PremiumCard>
+
+            {development.contact.phone && (
+              <div className="grid grid-cols-2 gap-3">
+                <RoundedButton className="w-full flex items-center justify-center gap-2" onClick={() => window.open(`tel:${(development.contact?.phone || '').replace(/\D/g, '')}`)}>
+                  <Phone size={18} /> Ligar
+                </RoundedButton>
+                <RoundedButton variant="outline" className="w-full flex items-center justify-center gap-2 border-green-500 text-green-600 hover:bg-green-50" onClick={handleWhatsApp}>
+                  <MessageCircle size={18} /> WhatsApp
+                </RoundedButton>
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {/* Lightbox Modal */}
       {isLightboxOpen && (
         <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-200">
-          <button 
+          <button
             onClick={(e) => {
               e.stopPropagation();
               setIsLightboxOpen(false);
@@ -284,34 +277,23 @@ export default function DevelopmentDetails() {
           </button>
 
           <div className="w-full max-w-4xl h-[70vh] flex items-center justify-center relative">
-            {lightboxType === 'image' ? (
-              <img 
-                src={development.images[lightboxIndex]} 
-                alt="Fullscreen" 
+            {lightboxType === 'image' && (development.images || [])[lightboxIndex] && (
+              <img
+                src={(development.images || [])[lightboxIndex]}
+                alt="Fullscreen"
                 className="max-w-full max-h-full object-contain rounded-lg"
                 referrerPolicy="no-referrer"
               />
-            ) : (
-              <div className="w-full h-full bg-black flex items-center justify-center rounded-lg overflow-hidden">
-                 <iframe 
-                  src={development.videoUrl} 
-                  className="w-full h-full"
-                  title="Video"
-                  frameBorder="0" 
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                  allowFullScreen
-                />
-              </div>
             )}
 
             {/* Navigation Arrows */}
-            <button 
+            <button
               onClick={(e) => { e.stopPropagation(); prevLightboxItem(); }}
               className="absolute left-2 p-3 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-sm"
             >
               <ChevronLeft size={24} />
             </button>
-            <button 
+            <button
               onClick={(e) => { e.stopPropagation(); nextLightboxItem(); }}
               className="absolute right-2 p-3 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-sm"
             >
@@ -320,33 +302,13 @@ export default function DevelopmentDetails() {
           </div>
 
           <div className="mt-6 flex gap-2 overflow-x-auto max-w-full p-2">
-             {development.images.map((img, idx) => (
-                <button 
-                  key={idx}
-                  onClick={() => {
-                    setLightboxIndex(idx);
-                    setLightboxType('image');
-                  }}
-                  className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${
-                    lightboxIndex === idx && lightboxType === 'image' ? 'border-gold-400 opacity-100' : 'border-transparent opacity-50 hover:opacity-80'
-                  }`}
-                >
-                  <img src={img} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </button>
-             ))}
-             {development.videoUrl && (
-                <button 
-                  onClick={() => {
-                    setLightboxIndex(development.images.length);
-                    setLightboxType('video');
-                  }}
-                  className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-800 flex items-center justify-center border-2 transition-all ${
-                    lightboxType === 'video' ? 'border-gold-400 opacity-100' : 'border-transparent opacity-50 hover:opacity-80'
-                  }`}
-                >
-                  <PlayCircle className="text-white" size={24} />
-                </button>
-             )}
+            {(development.images || []).map((img, idx) => (
+              <button key={idx} onClick={() => { setLightboxIndex(idx); setLightboxType('image'); }}
+                className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${lightboxIndex === idx && lightboxType === 'image' ? 'border-gold-400 opacity-100' : 'border-transparent opacity-50 hover:opacity-80'
+                  }`}>
+                <img src={img} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              </button>
+            ))}
           </div>
         </div>
       )}

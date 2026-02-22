@@ -1,213 +1,130 @@
 import { useState } from 'react';
 import { SectionHeader, PremiumCard, RoundedButton } from '@/components/ui/PremiumComponents';
-import { UserCard } from '@/components/admin/UserCard';
-import { TeamCard } from '@/components/admin/TeamCard';
-import { GoalCard } from '@/components/admin/GoalCard';
-import { AnnouncementCard } from '@/components/admin/AnnouncementCard';
-import { MOCK_USERS, MOCK_TEAMS, MOCK_GOALS, MOCK_ANNOUNCEMENTS, User, Role, Team, Goal, Announcement, Priority } from '@/data/admin';
-import { Users, Shield, Target, Megaphone, BarChart3, Plus, Search, Trophy, Download, FileSpreadsheet, FileText, Trash2, Edit2, X, ChevronDown, Calendar } from 'lucide-react';
+import { Users, Shield, Target, Megaphone, BarChart3, Plus, Search, Trophy, Download, FileSpreadsheet, FileText, Trash2, Edit2, ChevronDown, Calendar, Loader2 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useApp, Team, Goal, Announcement } from '@/context/AppContext';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 type Tab = 'users' | 'teams' | 'goals' | 'announcements' | 'reports';
 
 export default function AdminPanel() {
+  const {
+    allProfiles, updateProfile, refreshProfiles,
+    teams, addTeam, updateTeam, deleteTeam,
+    goals, addGoal, updateGoal, deleteGoal,
+    announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement,
+    clients, appointments,
+    loading, user
+  } = useApp();
+
   const [activeTab, setActiveTab] = useState<Tab>('users');
-  const [users, setUsers] = useState(MOCK_USERS);
-  const [teams, setTeams] = useState(MOCK_TEAMS);
-  const [goals, setGoals] = useState(MOCK_GOALS);
-  const [announcements, setAnnouncements] = useState(MOCK_ANNOUNCEMENTS);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Modals State
+  // Team modal
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
-  const [teamFormData, setTeamFormData] = useState<Partial<Team>>({ name: '', managerId: '', directorate: '' });
+  const [teamForm, setTeamForm] = useState<Partial<Team>>({ name: '', directorate: '' });
+  const [isSavingTeam, setIsSavingTeam] = useState(false);
 
+  // Goal modal
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
-  const [goalFormData, setGoalFormData] = useState<Partial<Goal>>({ 
-    title: '', description: '', target: 0, startDate: '', deadline: '', type: 'Mensal', assigneeType: 'All', points: 0 
-  });
   const [isMission, setIsMission] = useState(false);
+  const [goalForm, setGoalForm] = useState<Partial<Goal>>({ title: '', description: '', target: 0, start_date: '', deadline: '', type: 'Mensal', assignee_type: 'All', points: 0 });
+  const [isSavingGoal, setIsSavingGoal] = useState(false);
 
+  // Announcement modal
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
-  const [announcementFormData, setAnnouncementFormData] = useState<Partial<Announcement>>({
-    title: '', content: '', priority: 'Normal', startDate: '', endDate: ''
-  });
+  const [announcementForm, setAnnouncementForm] = useState<Partial<Announcement>>({ title: '', content: '', priority: 'Normal', start_date: '', end_date: '' });
+  const [isSavingAnnouncement, setIsSavingAnnouncement] = useState(false);
 
-  const [isManageMembersModalOpen, setIsManageMembersModalOpen] = useState(false);
+  // Manage members
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
-  // Reports State
+  // Reports
   const [reportView, setReportView] = useState<'Teams' | 'Brokers'>('Teams');
   const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
   const [reportDateRange, setReportDateRange] = useState({ start: '', end: '' });
 
-  // Users Logic
-  const pendingUsers = users.filter(u => u.status === 'Pendente');
-  const activeUsers = users.filter(u => u.status === 'Ativo' && u.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const pendingUsers = allProfiles.filter(u => u.status === 'Pendente' || u.status === 'pending');
+  const activeUsers = allProfiles.filter(u => (u.status === 'active' || u.status === 'Ativo') && u.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  const handleApproveUser = (id: string) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'Ativo' } : u));
+  // ── Users Actions ──────────────────────────────────────────────────────────
+  const handleApproveUser = async (id: string) => {
+    await updateProfile(id, { status: 'active' });
+  };
+  const handleRejectUser = async (id: string) => {
+    if (confirm('Rejeitar e remover este usuário?')) await updateProfile(id, { status: 'rejected' });
+  };
+  const handleRoleChange = async (id: string, role: string) => {
+    await updateProfile(id, { role });
   };
 
-  const handleRejectUser = (id: string) => {
-    setUsers(prev => prev.filter(u => u.id !== id));
-  };
-
-  const handleRoleChange = (id: string, role: Role) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u));
-  };
-
-  // Teams Logic
-  const handleOpenTeamModal = (team?: Team) => {
-    if (team) {
-      setEditingTeam(team);
-      setTeamFormData(team);
-    } else {
-      setEditingTeam(null);
-      setTeamFormData({ name: '', managerId: '', directorate: '' });
-    }
+  // ── Team Actions ───────────────────────────────────────────────────────────
+  const openTeamModal = (team?: Team) => {
+    if (team) { setEditingTeam(team); setTeamForm({ ...team }); }
+    else { setEditingTeam(null); setTeamForm({ name: '', directorate: '' }); }
     setIsTeamModalOpen(true);
   };
-
-  const handleSaveTeam = () => {
-    if (!teamFormData.name) return;
-    
-    if (editingTeam) {
-      setTeams(prev => prev.map(t => t.id === editingTeam.id ? { ...t, ...teamFormData } as Team : t));
-    } else {
-      const newTeam: Team = {
-        id: Date.now().toString(),
-        members: [],
-        totalSales: 'R$ 0',
-        ...teamFormData as Team
-      };
-      setTeams(prev => [...prev, newTeam]);
-    }
-    setIsTeamModalOpen(false);
+  const handleSaveTeam = async () => {
+    if (!teamForm.name) return;
+    setIsSavingTeam(true);
+    try {
+      if (editingTeam) await updateTeam(editingTeam.id, teamForm);
+      else await addTeam({ ...teamForm, members: [] } as Omit<Team, 'id'>);
+      setIsTeamModalOpen(false);
+    } finally { setIsSavingTeam(false); }
   };
 
-  const handleDeleteTeam = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir esta equipe?')) {
-      setTeams(prev => prev.filter(t => t.id !== id));
-    }
+  const handleToggleMember = async (teamId: string, userId: string) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const members = team.members || [];
+    const newMembers = members.includes(userId) ? members.filter(id => id !== userId) : [...members, userId];
+    await updateTeam(teamId, { members: newMembers });
+    await updateProfile(userId, { team: members.includes(userId) ? undefined : teamId });
   };
 
-  const handleManageMembers = (teamId: string) => {
-    setSelectedTeamId(teamId);
-    setIsManageMembersModalOpen(true);
-  };
-
-  const handleAddMemberToTeam = (userId: string) => {
-    if (!selectedTeamId) return;
-    setTeams(prev => prev.map(t => {
-      if (t.id === selectedTeamId && !t.members.includes(userId)) {
-        return { ...t, members: [...t.members, userId] };
-      }
-      return t;
-    }));
-    // Also update user's teamId
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, teamId: selectedTeamId } : u));
-  };
-
-  const handleRemoveMemberFromTeam = (userId: string) => {
-    if (!selectedTeamId) return;
-    setTeams(prev => prev.map(t => {
-      if (t.id === selectedTeamId) {
-        return { ...t, members: t.members.filter(id => id !== userId) };
-      }
-      return t;
-    }));
-    // Also update user's teamId
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, teamId: undefined } : u));
-  };
-
-  // Goals Logic
-  const handleOpenGoalModal = (goal?: Goal, isMissionMode = false) => {
-    setIsMission(isMissionMode);
-    if (goal) {
-      setEditingGoal(goal);
-      setGoalFormData(goal);
-    } else {
-      setEditingGoal(null);
-      setGoalFormData({ 
-        title: '', description: '', target: 0, startDate: '', deadline: '', 
-        type: isMissionMode ? 'Missão' : 'Mensal', assigneeType: 'All', points: isMissionMode ? 100 : 0 
-      });
-    }
+  // ── Goal Actions ───────────────────────────────────────────────────────────
+  const openGoalModal = (goal?: Goal, missionMode = false) => {
+    setIsMission(missionMode);
+    if (goal) { setEditingGoal(goal); setGoalForm({ ...goal }); }
+    else { setEditingGoal(null); setGoalForm({ title: '', description: '', target: 0, start_date: '', deadline: '', type: missionMode ? 'Missão' : 'Mensal', assignee_type: 'All', points: missionMode ? 100 : 0 }); }
     setIsGoalModalOpen(true);
   };
-
-  const handleSaveGoal = () => {
-    if (!goalFormData.title) return;
-
-    if (editingGoal) {
-      setGoals(prev => prev.map(g => g.id === editingGoal.id ? { ...g, ...goalFormData } as Goal : g));
-    } else {
-      const newGoal: Goal = {
-        id: Date.now().toString(),
-        currentProgress: 0,
-        ...goalFormData as Goal
-      };
-      setGoals(prev => [...prev, newGoal]);
-    }
-    setIsGoalModalOpen(false);
+  const handleSaveGoal = async () => {
+    if (!goalForm.title) return;
+    setIsSavingGoal(true);
+    try {
+      if (editingGoal) await updateGoal(editingGoal.id, goalForm);
+      else await addGoal({ ...goalForm, current_progress: 0 } as Omit<Goal, 'id'>);
+      setIsGoalModalOpen(false);
+    } finally { setIsSavingGoal(false); }
   };
 
-  const handleDeleteGoal = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir esta meta?')) {
-      setGoals(prev => prev.filter(g => g.id !== id));
-    }
-  };
-
-  // Announcements Logic
-  const handleOpenAnnouncementModal = (announcement?: Announcement) => {
-    if (announcement) {
-      setEditingAnnouncement(announcement);
-      setAnnouncementFormData(announcement);
-    } else {
-      setEditingAnnouncement(null);
-      setAnnouncementFormData({ title: '', content: '', priority: 'Normal', startDate: '', endDate: '' });
-    }
+  // ── Announcement Actions ───────────────────────────────────────────────────
+  const openAnnouncementModal = (ann?: Announcement) => {
+    if (ann) { setEditingAnnouncement(ann); setAnnouncementForm({ ...ann }); }
+    else { setEditingAnnouncement(null); setAnnouncementForm({ title: '', content: '', priority: 'Normal', start_date: '', end_date: '' }); }
     setIsAnnouncementModalOpen(true);
   };
-
-  const handleSaveAnnouncement = () => {
-    if (!announcementFormData.title) return;
-
-    if (editingAnnouncement) {
-      setAnnouncements(prev => prev.map(a => a.id === editingAnnouncement.id ? { ...a, ...announcementFormData } as Announcement : a));
-    } else {
-      const newAnnouncement: Announcement = {
-        id: Date.now().toString(),
-        authorId: '1', // Mock current user
-        ...announcementFormData as Announcement
-      };
-      setAnnouncements(prev => [...prev, newAnnouncement]);
-    }
-    setIsAnnouncementModalOpen(false);
+  const handleSaveAnnouncement = async () => {
+    if (!announcementForm.title) return;
+    setIsSavingAnnouncement(true);
+    try {
+      if (editingAnnouncement) await updateAnnouncement(editingAnnouncement.id, announcementForm);
+      else await addAnnouncement({ ...announcementForm, author_id: user?.id } as Omit<Announcement, 'id' | 'created_at'>);
+      setIsAnnouncementModalOpen(false);
+    } finally { setIsSavingAnnouncement(false); }
   };
-  
-  const handleDeleteAnnouncement = (id: string) => {
-      if (confirm('Tem certeza que deseja excluir este anúncio?')) {
-        setAnnouncements(prev => prev.filter(a => a.id !== id));
-      }
-  }
 
-  // Reports Logic
-  const mockReportData = [
-    { name: 'Equipe Alpha', sales: 12500000, appointments: 45, missions: 12 },
-    { name: 'Equipe Beta', sales: 8200000, appointments: 32, missions: 8 },
-    { name: 'Equipe Gamma', sales: 5100000, appointments: 28, missions: 5 },
-  ];
-
-  const handleDownloadReport = (format: 'pdf' | 'excel') => {
-    alert(`Relatório baixado em ${format.toUpperCase()} para o período: ${reportDateRange.start || 'Início'} até ${reportDateRange.end || 'Fim'}`);
-    setIsDownloadMenuOpen(false);
-  };
+  // ── Reports data ───────────────────────────────────────────────────────────
+  const stageData = ['Em Análise', 'Aprovados', 'Condicionados', 'Reprovados', 'Em Tratativa', 'Vendas Concluidas'].map(stage => ({
+    name: stage.length > 10 ? stage.substring(0, 10) + '…' : stage,
+    total: clients.filter(c => c.stage === stage).length
+  }));
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -221,43 +138,44 @@ export default function AdminPanel() {
                   Solicitações Pendentes ({pendingUsers.length})
                 </h3>
                 <div className="grid gap-3">
-                  {pendingUsers.map(user => (
-                    <UserCard 
-                      key={user.id} 
-                      user={user} 
-                      onApprove={handleApproveUser} 
-                      onReject={handleRejectUser} 
-                    />
+                  {pendingUsers.map(u => (
+                    <PremiumCard key={u.id} className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gold-100 dark:bg-gold-900/30 flex items-center justify-center text-gold-700 dark:text-gold-400 font-bold text-sm">{(u.name || '?').charAt(0)}</div>
+                        <div><p className="font-semibold text-text-primary">{u.name}</p><p className="text-xs text-text-secondary">{u.role}</p></div>
+                      </div>
+                      <div className="flex gap-2">
+                        <RoundedButton size="sm" onClick={() => handleApproveUser(u.id)} className="bg-green-500 hover:bg-green-600 text-white border-0 text-xs">Aprovar</RoundedButton>
+                        <RoundedButton size="sm" variant="outline" onClick={() => handleRejectUser(u.id)} className="text-red-500 border-red-300 text-xs">Rejeitar</RoundedButton>
+                      </div>
+                    </PremiumCard>
                   ))}
                 </div>
               </section>
             )}
-
             <section>
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-sm font-bold text-text-secondary uppercase">Usuários Ativos ({activeUsers.length})</h3>
-                <div className="relative w-64">
+                <div className="relative w-56">
                   <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input 
-                    type="text" 
-                    placeholder="Buscar por nome..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-7 pr-2 py-1.5 text-xs bg-white dark:bg-surface-100 border border-surface-200 rounded-lg focus:outline-none focus:border-gold-400"
-                  />
+                  <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full pl-7 pr-2 py-1.5 text-xs bg-white dark:bg-surface-100 border border-surface-200 rounded-lg focus:outline-none focus:border-gold-400" />
                 </div>
               </div>
               <div className="grid gap-3">
-                {activeUsers.map(user => (
-                  <UserCard 
-                    key={user.id} 
-                    user={user} 
-                    onRoleChange={handleRoleChange}
-                  />
-                ))}
-                {activeUsers.length === 0 && (
-                  <p className="text-center text-text-secondary py-8">Nenhum usuário encontrado.</p>
-                )}
+                {loading ? <Loader2 size={24} className="animate-spin mx-auto text-gold-400 py-4" /> :
+                  activeUsers.map(u => (
+                    <PremiumCard key={u.id} className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-surface-200 flex items-center justify-center text-text-primary font-bold text-sm">{(u.name || '?').charAt(0)}</div>
+                        <div><p className="font-semibold text-text-primary">{u.name}</p><p className="text-xs text-text-secondary">{u.role}</p></div>
+                      </div>
+                      <select value={u.role} onChange={e => handleRoleChange(u.id, e.target.value)}
+                        className="text-xs bg-surface-50 border border-surface-200 rounded-lg p-1 focus:outline-none focus:border-gold-400">
+                        {['Corretor', 'Gerente', 'Coordenador', 'Diretor', 'Administrador'].map(r => <option key={r}>{r}</option>)}
+                      </select>
+                    </PremiumCard>
+                  ))}
               </div>
             </section>
           </div>
@@ -267,25 +185,26 @@ export default function AdminPanel() {
         return (
           <div className="space-y-4">
             <div className="flex justify-end">
-              <RoundedButton size="sm" onClick={() => handleOpenTeamModal()}>
-                <Plus size={16} className="mr-1" /> Nova Equipe
-              </RoundedButton>
+              <RoundedButton size="sm" onClick={() => openTeamModal()}><Plus size={16} className="mr-1" /> Nova Equipe</RoundedButton>
             </div>
-            <div className="grid gap-3">
-              {teams.map(team => (
-                <div key={team.id} className="relative group">
-                  <TeamCard team={team} onManage={handleManageMembers} />
-                  <div className="absolute top-4 right-12 hidden group-hover:flex gap-2">
-                    <button onClick={() => handleOpenTeamModal(team)} className="p-1.5 bg-white rounded-full shadow hover:text-gold-600">
-                      <Edit2 size={14} />
-                    </button>
-                    <button onClick={() => handleDeleteTeam(team.id)} className="p-1.5 bg-white rounded-full shadow hover:text-red-500">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {loading ? <Loader2 size={24} className="animate-spin mx-auto text-gold-400 py-4" /> :
+              teams.length === 0 ? <p className="text-center text-text-secondary py-8">Nenhuma equipe cadastrada.</p> :
+                teams.map(team => (
+                  <PremiumCard key={team.id} className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="font-bold text-text-primary">{team.name}</h4>
+                        {team.directorate && <p className="text-xs text-text-secondary">{team.directorate}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => openTeamModal(team)} className="p-1.5 bg-surface-50 rounded-full hover:text-gold-600"><Edit2 size={14} /></button>
+                        <button onClick={() => { setSelectedTeamId(team.id); setIsMembersModalOpen(true); }} className="p-1.5 bg-surface-50 rounded-full hover:text-blue-600"><Users size={14} /></button>
+                        <button onClick={() => { if (confirm('Excluir equipe?')) deleteTeam(team.id); }} className="p-1.5 bg-surface-50 rounded-full hover:text-red-500"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-text-secondary">{(team.members || []).length} membros</p>
+                  </PremiumCard>
+                ))}
           </div>
         );
 
@@ -293,28 +212,39 @@ export default function AdminPanel() {
         return (
           <div className="space-y-4">
             <div className="flex justify-end gap-2">
-              <RoundedButton size="sm" variant="outline" onClick={() => handleOpenGoalModal(undefined, true)}>
-                <Trophy size={16} className="mr-1" /> Missão
-              </RoundedButton>
-              <RoundedButton size="sm" onClick={() => handleOpenGoalModal()}>
-                <Plus size={16} className="mr-1" /> Nova Meta
-              </RoundedButton>
+              <RoundedButton size="sm" variant="outline" onClick={() => openGoalModal(undefined, true)}><Trophy size={16} className="mr-1" /> Missão</RoundedButton>
+              <RoundedButton size="sm" onClick={() => openGoalModal()}><Plus size={16} className="mr-1" /> Nova Meta</RoundedButton>
             </div>
-            <div className="grid gap-3">
-              {goals.map(goal => (
-                <div key={goal.id} className="relative group">
-                  <GoalCard goal={goal} />
-                  <div className="absolute top-4 right-4 hidden group-hover:flex gap-2 z-20">
-                    <button onClick={() => handleOpenGoalModal(goal, goal.type === 'Missão')} className="p-1.5 bg-white rounded-full shadow hover:text-gold-600">
-                      <Edit2 size={14} />
-                    </button>
-                    <button onClick={() => handleDeleteGoal(goal.id)} className="p-1.5 bg-white rounded-full shadow hover:text-red-500">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {loading ? <Loader2 size={24} className="animate-spin mx-auto text-gold-400 py-4" /> :
+              goals.length === 0 ? <p className="text-center text-text-secondary py-8">Nenhuma meta cadastrada.</p> :
+                goals.map(goal => {
+                  const progress = goal.target ? ((goal.current_progress || 0) / goal.target) * 100 : 0;
+                  return (
+                    <PremiumCard key={goal.id} className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            {goal.type === 'Missão' && <Trophy size={14} className="text-gold-500 flex-shrink-0" />}
+                            <h4 className="font-bold text-text-primary truncate">{goal.title}</h4>
+                          </div>
+                          {goal.description && <p className="text-xs text-text-secondary mt-1">{goal.description}</p>}
+                          <div className="mt-3">
+                            <div className="flex justify-between text-xs text-text-secondary mb-1">
+                              <span>Progresso</span><span>{goal.current_progress || 0} / {goal.target || 0}</span>
+                            </div>
+                            <div className="h-2 bg-surface-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-gold-500 rounded-full transition-all" style={{ width: `${Math.min(progress, 100)}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 ml-3 flex-shrink-0">
+                          <button onClick={() => openGoalModal(goal, goal.type === 'Missão')} className="p-1.5 bg-surface-50 rounded-full hover:text-gold-600"><Edit2 size={14} /></button>
+                          <button onClick={() => { if (confirm('Excluir meta?')) deleteGoal(goal.id); }} className="p-1.5 bg-surface-50 rounded-full hover:text-red-500"><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                    </PremiumCard>
+                  );
+                })}
           </div>
         );
 
@@ -322,139 +252,85 @@ export default function AdminPanel() {
         return (
           <div className="space-y-4">
             <div className="flex justify-end">
-              <RoundedButton size="sm" onClick={() => handleOpenAnnouncementModal()}>
-                <Plus size={16} className="mr-1" /> Novo Anúncio
-              </RoundedButton>
+              <RoundedButton size="sm" onClick={() => openAnnouncementModal()}><Plus size={16} className="mr-1" /> Novo Anúncio</RoundedButton>
             </div>
-            <div className="grid gap-3">
-              {announcements.map(announcement => (
-                <div key={announcement.id} className="relative group">
-                  <AnnouncementCard announcement={announcement} onDelete={handleDeleteAnnouncement} />
-                  <div className="absolute top-4 right-16 hidden group-hover:flex gap-2">
-                    <button onClick={() => handleOpenAnnouncementModal(announcement)} className="p-1.5 bg-white rounded-full shadow hover:text-gold-600">
-                      <Edit2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {loading ? <Loader2 size={24} className="animate-spin mx-auto text-gold-400 py-4" /> :
+              announcements.length === 0 ? <p className="text-center text-text-secondary py-8">Nenhum anúncio cadastrado.</p> :
+                announcements.map(ann => {
+                  const priorityColors: Record<string, string> = { Urgente: 'text-red-600 bg-red-50', Importante: 'text-amber-600 bg-amber-50', Normal: 'text-blue-600 bg-blue-50' };
+                  return (
+                    <PremiumCard key={ann.id} className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${priorityColors[ann.priority || 'Normal']}`}>{ann.priority}</span>
+                            <h4 className="font-bold text-text-primary truncate">{ann.title}</h4>
+                          </div>
+                          <p className="text-sm text-text-secondary line-clamp-2">{ann.content}</p>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <button onClick={() => openAnnouncementModal(ann)} className="p-1.5 bg-surface-50 rounded-full hover:text-gold-600"><Edit2 size={14} /></button>
+                          <button onClick={() => { if (confirm('Excluir anúncio?')) deleteAnnouncement(ann.id); }} className="p-1.5 bg-surface-50 rounded-full hover:text-red-500"><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                    </PremiumCard>
+                  );
+                })}
           </div>
         );
 
       case 'reports':
         return (
           <div className="space-y-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <div className="flex gap-2 bg-surface-100 p-1 rounded-lg">
-                  <button 
-                    onClick={() => setReportView('Teams')}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${reportView === 'Teams' ? 'bg-white shadow text-text-primary' : 'text-text-secondary'}`}
-                  >
-                    Equipes
+            <div className="flex justify-between items-center">
+              <div className="flex gap-2 bg-surface-100 p-1 rounded-lg">
+                {(['Teams', 'Brokers'] as const).map(v => (
+                  <button key={v} onClick={() => setReportView(v)}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${reportView === v ? 'bg-white shadow text-text-primary' : 'text-text-secondary'}`}>
+                    {v === 'Teams' ? 'Etapas' : 'Corretores'}
                   </button>
-                  <button 
-                    onClick={() => setReportView('Brokers')}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${reportView === 'Brokers' ? 'bg-white shadow text-text-primary' : 'text-text-secondary'}`}
-                  >
-                    Corretores
-                  </button>
-                </div>
-                
-                <div className="relative">
-                  <button 
-                    onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
-                    className="flex items-center gap-2 px-3 py-2 bg-white border border-surface-200 rounded-lg hover:bg-surface-50 text-text-secondary text-xs font-medium"
-                  >
-                    <Download size={14} />
-                    Exportar
-                    <ChevronDown size={14} />
-                  </button>
-                  
-                  {isDownloadMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-surface-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-200">
-                      <button 
-                        onClick={() => handleDownloadReport('pdf')}
-                        className="w-full px-4 py-2 text-left text-xs hover:bg-surface-50 flex items-center gap-2 text-red-600"
-                      >
-                        <FileText size={14} /> PDF
-                      </button>
-                      <button 
-                        onClick={() => handleDownloadReport('excel')}
-                        className="w-full px-4 py-2 text-left text-xs hover:bg-surface-50 flex items-center gap-2 text-green-600"
-                      >
-                        <FileSpreadsheet size={14} /> Excel
-                      </button>
-                    </div>
-                  )}
-                </div>
+                ))}
               </div>
-
-              <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-surface-200">
-                <Calendar size={14} className="text-text-secondary ml-1" />
-                <input 
-                  type="date" 
-                  value={reportDateRange.start}
-                  onChange={(e) => setReportDateRange(prev => ({ ...prev, start: e.target.value }))}
-                  className="text-xs border-none focus:ring-0 text-text-secondary bg-transparent p-0 w-24"
-                />
-                <span className="text-text-secondary text-xs">-</span>
-                <input 
-                  type="date" 
-                  value={reportDateRange.end}
-                  onChange={(e) => setReportDateRange(prev => ({ ...prev, end: e.target.value }))}
-                  className="text-xs border-none focus:ring-0 text-text-secondary bg-transparent p-0 w-24"
-                />
+              <div className="relative">
+                <button onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 bg-white border border-surface-200 rounded-lg hover:bg-surface-50 text-text-secondary text-xs font-medium">
+                  <Download size={14} /> Exportar <ChevronDown size={14} />
+                </button>
+                {isDownloadMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-surface-100 py-1 z-50">
+                    <button onClick={() => { alert('Relatório PDF gerado!'); setIsDownloadMenuOpen(false); }} className="w-full px-4 py-2 text-left text-xs hover:bg-surface-50 flex items-center gap-2 text-red-600"><FileText size={14} /> PDF</button>
+                    <button onClick={() => { alert('Relatório Excel gerado!'); setIsDownloadMenuOpen(false); }} className="w-full px-4 py-2 text-left text-xs hover:bg-surface-50 flex items-center gap-2 text-green-600"><FileSpreadsheet size={14} /> Excel</button>
+                  </div>
+                )}
               </div>
             </div>
 
             <PremiumCard className="p-4">
-              <h4 className="font-bold text-text-primary mb-4">Vendas por {reportView === 'Teams' ? 'Equipe' : 'Corretor'}</h4>
+              <h4 className="font-bold text-text-primary mb-4">Clientes por Etapa do Pipeline</h4>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={mockReportData}>
+                  <BarChart data={stageData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9 }} />
                     <YAxis hide />
-                    <Tooltip 
-                      cursor={{fill: 'transparent'}}
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
-                    />
-                    <Bar dataKey="sales" fill="#D4AF37" radius={[4, 4, 0, 0]} />
+                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                    <Bar dataKey="total" name="Clientes" fill="#D4AF37" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </PremiumCard>
 
-            <div className="grid grid-cols-2 gap-4">
-              <PremiumCard className="p-4">
-                <h4 className="font-bold text-text-primary mb-4 text-sm">Agendamentos</h4>
-                <div className="h-40 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={mockReportData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
-                      <YAxis hide />
-                      <Tooltip cursor={{fill: 'transparent'}} />
-                      <Bar dataKey="appointments" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </PremiumCard>
-              <PremiumCard className="p-4">
-                <h4 className="font-bold text-text-primary mb-4 text-sm">Missões Concluídas</h4>
-                <div className="h-40 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={mockReportData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
-                      <YAxis hide />
-                      <Tooltip cursor={{fill: 'transparent'}} />
-                      <Bar dataKey="missions" fill="#10B981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </PremiumCard>
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { label: 'Total de Clientes', value: clients.length, color: 'text-gold-600' },
+                { label: 'Aprovados', value: clients.filter(c => c.stage === 'Aprovados').length, color: 'text-green-600' },
+                { label: 'Agendamentos', value: appointments.length, color: 'text-blue-600' },
+              ].map(stat => (
+                <PremiumCard key={stat.label} className="p-4 text-center">
+                  <p className={`text-3xl font-black ${stat.color}`}>{stat.value}</p>
+                  <p className="text-xs text-text-secondary mt-1">{stat.label}</p>
+                </PremiumCard>
+              ))}
             </div>
           </div>
         );
@@ -465,7 +341,6 @@ export default function AdminPanel() {
     <div className="p-6 pb-24 min-h-screen bg-surface-50">
       <SectionHeader title="Painel Administrativo" subtitle="Governança e Estratégia" />
 
-      {/* Navigation Tabs */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-2">
         {[
           { id: 'users', label: 'Usuários', icon: Users },
@@ -474,258 +349,139 @@ export default function AdminPanel() {
           { id: 'announcements', label: 'Anúncios', icon: Megaphone },
           { id: 'reports', label: 'Relatórios', icon: BarChart3 },
         ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as Tab)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-              activeTab === tab.id
-                ? 'bg-gold-500 text-white shadow-md shadow-gold-500/20'
-                : 'bg-white dark:bg-surface-100 text-text-secondary border border-surface-200'
-            }`}
-          >
-            <tab.icon size={14} />
-            {tab.label}
+          <button key={tab.id} onClick={() => setActiveTab(tab.id as Tab)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${activeTab === tab.id ? 'bg-gold-500 text-white shadow-md shadow-gold-500/20' : 'bg-white dark:bg-surface-100 text-text-secondary border border-surface-200'}`}>
+            <tab.icon size={14} /> {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Content Area */}
-      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {renderTabContent()}
-      </div>
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">{renderTabContent()}</div>
 
       {/* Team Modal */}
-      <Modal isOpen={isTeamModalOpen} onClose={() => setIsTeamModalOpen(false)} title={editingTeam ? "Editar Equipe" : "Nova Equipe"}>
+      <Modal isOpen={isTeamModalOpen} onClose={() => setIsTeamModalOpen(false)} title={editingTeam ? 'Editar Equipe' : 'Nova Equipe'}>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">Nome da Equipe</label>
-            <input 
-              value={teamFormData.name}
-              onChange={(e) => setTeamFormData(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              placeholder="Ex: Equipe Alpha"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">Líder / Gerente</label>
-            <select 
-              value={teamFormData.managerId}
-              onChange={(e) => setTeamFormData(prev => ({ ...prev, managerId: e.target.value }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-            >
-              <option value="">Selecione um gerente</option>
-              {users.filter(u => u.role === 'Gerente' || u.role === 'Diretor').map(u => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Nome</label>
+            <input value={teamForm.name || ''} onChange={e => setTeamForm(p => ({ ...p, name: e.target.value }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary" placeholder="Ex: Equipe Alpha" />
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Diretoria</label>
-            <input 
-              value={teamFormData.directorate}
-              onChange={(e) => setTeamFormData(prev => ({ ...prev, directorate: e.target.value }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              placeholder="Ex: Comercial"
-            />
+            <input value={teamForm.directorate || ''} onChange={e => setTeamForm(p => ({ ...p, directorate: e.target.value }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary" placeholder="Ex: Comercial" />
           </div>
-          <RoundedButton fullWidth onClick={handleSaveTeam}>Salvar</RoundedButton>
+          <RoundedButton fullWidth onClick={handleSaveTeam} disabled={isSavingTeam}>
+            {isSavingTeam ? <><Loader2 size={16} className="animate-spin" /> Salvando...</> : 'Salvar'}
+          </RoundedButton>
         </div>
       </Modal>
 
       {/* Manage Members Modal */}
-      <Modal isOpen={isManageMembersModalOpen} onClose={() => setIsManageMembersModalOpen(false)} title="Gerenciar Membros">
+      <Modal isOpen={isMembersModalOpen} onClose={() => setIsMembersModalOpen(false)} title="Gerenciar Membros">
         <div className="space-y-4">
           <div className="max-h-60 overflow-y-auto space-y-2">
-            {users.filter(u => u.status === 'Ativo').map(user => {
+            {allProfiles.filter(u => u.status === 'active' || u.status === 'Ativo').map(u => {
               const team = teams.find(t => t.id === selectedTeamId);
-              const isMember = team?.members.includes(user.id);
-              
+              const isMember = (team?.members || []).includes(u.id);
               return (
-                <div key={user.id} className="flex justify-between items-center p-2 bg-surface-50 rounded-lg">
+                <div key={u.id} className="flex justify-between items-center p-2 bg-surface-50 rounded-lg">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-surface-200 flex items-center justify-center text-xs font-bold">
-                      {user.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{user.name}</p>
-                      <p className="text-xs text-text-secondary">{user.role}</p>
-                    </div>
+                    <div className="w-8 h-8 rounded-full bg-surface-200 flex items-center justify-center text-xs font-bold">{(u.name || '?').charAt(0)}</div>
+                    <div><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-text-secondary">{u.role}</p></div>
                   </div>
-                  {isMember ? (
-                    <button onClick={() => handleRemoveMemberFromTeam(user.id)} className="text-red-500 text-xs font-medium hover:underline">Remover</button>
-                  ) : (
-                    <button onClick={() => handleAddMemberToTeam(user.id)} className="text-green-600 text-xs font-medium hover:underline">Adicionar</button>
-                  )}
+                  <button onClick={() => selectedTeamId && handleToggleMember(selectedTeamId, u.id)}
+                    className={`text-xs font-medium hover:underline ${isMember ? 'text-red-500' : 'text-green-600'}`}>
+                    {isMember ? 'Remover' : 'Adicionar'}
+                  </button>
                 </div>
               );
             })}
           </div>
-          <RoundedButton fullWidth onClick={() => setIsManageMembersModalOpen(false)}>Concluir</RoundedButton>
+          <RoundedButton fullWidth onClick={() => setIsMembersModalOpen(false)}>Concluir</RoundedButton>
         </div>
       </Modal>
 
-      {/* Goal/Mission Modal */}
-      <Modal isOpen={isGoalModalOpen} onClose={() => setIsGoalModalOpen(false)} title={editingGoal ? (isMission ? "Editar Missão" : "Editar Meta") : (isMission ? "Nova Missão" : "Nova Meta")}>
+      {/* Goal Modal */}
+      <Modal isOpen={isGoalModalOpen} onClose={() => setIsGoalModalOpen(false)} title={editingGoal ? (isMission ? 'Editar Missão' : 'Editar Meta') : (isMission ? 'Nova Missão' : 'Nova Meta')}>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Título</label>
-            <input 
-              value={goalFormData.title}
-              onChange={(e) => setGoalFormData(prev => ({ ...prev, title: e.target.value }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-            />
+            <input value={goalForm.title || ''} onChange={e => setGoalForm(p => ({ ...p, title: e.target.value }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary" />
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Descrição</label>
-            <textarea 
-              value={goalFormData.description}
-              onChange={(e) => setGoalFormData(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary h-20"
-            />
+            <textarea value={goalForm.description || ''} onChange={e => setGoalForm(p => ({ ...p, description: e.target.value }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary h-20" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">{isMission ? 'Pontos' : 'Alvo (Valor)'}</label>
-              <input 
-                type="number"
-                value={isMission ? goalFormData.points : goalFormData.target}
-                onChange={(e) => setGoalFormData(prev => ({ ...prev, [isMission ? 'points' : 'target']: Number(e.target.value) }))}
-                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              />
+              <label className="block text-sm font-medium text-text-secondary mb-1">{isMission ? 'Pontos' : 'Alvo'}</label>
+              <input type="number" value={isMission ? goalForm.points : goalForm.target} onChange={e => setGoalForm(p => ({ ...p, [isMission ? 'points' : 'target']: Number(e.target.value) }))}
+                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary" />
             </div>
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Tipo</label>
-              <select 
-                value={goalFormData.type}
-                onChange={(e) => setGoalFormData(prev => ({ ...prev, type: e.target.value as any }))}
-                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              >
-                {isMission ? (
-                  <option value="Missão">Missão</option>
-                ) : (
-                  <>
-                    <option value="Mensal">Mensal</option>
-                    <option value="Trimestral">Trimestral</option>
-                    <option value="Personalizada">Personalizada</option>
-                  </>
-                )}
+              <select value={goalForm.type} onChange={e => setGoalForm(p => ({ ...p, type: e.target.value }))}
+                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary">
+                {isMission ? <option>Missão</option> : <><option>Mensal</option><option>Trimestral</option><option>Personalizada</option></>}
               </select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Início</label>
-              <input 
-                type="date"
-                value={goalFormData.startDate}
-                onChange={(e) => setGoalFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              />
+              <input type="date" value={goalForm.start_date || ''} onChange={e => setGoalForm(p => ({ ...p, start_date: e.target.value }))}
+                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary" />
             </div>
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Fim</label>
-              <input 
-                type="date"
-                value={goalFormData.deadline}
-                onChange={(e) => setGoalFormData(prev => ({ ...prev, deadline: e.target.value }))}
-                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              />
+              <input type="date" value={goalForm.deadline || ''} onChange={e => setGoalForm(p => ({ ...p, deadline: e.target.value }))}
+                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary" />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">Atribuir a</label>
-            <select 
-              value={goalFormData.assigneeType}
-              onChange={(e) => setGoalFormData(prev => ({ ...prev, assigneeType: e.target.value as any }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-            >
-              <option value="All">Todos</option>
-              <option value="Team">Equipe Específica</option>
-              <option value="User">Usuário Específico</option>
-            </select>
-          </div>
-          {goalFormData.assigneeType === 'Team' && (
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Selecione a Equipe</label>
-              <select 
-                value={goalFormData.assigneeId}
-                onChange={(e) => setGoalFormData(prev => ({ ...prev, assigneeId: e.target.value }))}
-                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              >
-                <option value="">Selecione...</option>
-                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-          )}
-          {goalFormData.assigneeType === 'User' && (
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Selecione o Usuário</label>
-              <select 
-                value={goalFormData.assigneeId}
-                onChange={(e) => setGoalFormData(prev => ({ ...prev, assigneeId: e.target.value }))}
-                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              >
-                <option value="">Selecione...</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            </div>
-          )}
-          <RoundedButton fullWidth onClick={handleSaveGoal}>Salvar</RoundedButton>
+          <RoundedButton fullWidth onClick={handleSaveGoal} disabled={isSavingGoal}>
+            {isSavingGoal ? <><Loader2 size={16} className="animate-spin" /> Salvando...</> : 'Salvar'}
+          </RoundedButton>
         </div>
       </Modal>
 
       {/* Announcement Modal */}
-      <Modal isOpen={isAnnouncementModalOpen} onClose={() => setIsAnnouncementModalOpen(false)} title={editingAnnouncement ? "Editar Anúncio" : "Novo Anúncio"}>
+      <Modal isOpen={isAnnouncementModalOpen} onClose={() => setIsAnnouncementModalOpen(false)} title={editingAnnouncement ? 'Editar Anúncio' : 'Novo Anúncio'}>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Título</label>
-            <input 
-              value={announcementFormData.title}
-              onChange={(e) => setAnnouncementFormData(prev => ({ ...prev, title: e.target.value }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-            />
+            <input value={announcementForm.title || ''} onChange={e => setAnnouncementForm(p => ({ ...p, title: e.target.value }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary" />
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Conteúdo</label>
-            <textarea 
-              value={announcementFormData.content}
-              onChange={(e) => setAnnouncementFormData(prev => ({ ...prev, content: e.target.value }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary h-24"
-            />
+            <textarea value={announcementForm.content || ''} onChange={e => setAnnouncementForm(p => ({ ...p, content: e.target.value }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary h-24" />
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Prioridade</label>
-            <select 
-              value={announcementFormData.priority}
-              onChange={(e) => setAnnouncementFormData(prev => ({ ...prev, priority: e.target.value as Priority }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-            >
-              <option value="Normal">Normal</option>
-              <option value="Importante">Importante</option>
-              <option value="Urgente">Urgente</option>
+            <select value={announcementForm.priority} onChange={e => setAnnouncementForm(p => ({ ...p, priority: e.target.value as any }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary">
+              <option>Normal</option><option>Importante</option><option>Urgente</option>
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Início</label>
-              <input 
-                type="date"
-                value={announcementFormData.startDate}
-                onChange={(e) => setAnnouncementFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              />
+              <input type="date" value={announcementForm.start_date || ''} onChange={e => setAnnouncementForm(p => ({ ...p, start_date: e.target.value }))}
+                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary" />
             </div>
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Fim</label>
-              <input 
-                type="date"
-                value={announcementFormData.endDate}
-                onChange={(e) => setAnnouncementFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              />
+              <input type="date" value={announcementForm.end_date || ''} onChange={e => setAnnouncementForm(p => ({ ...p, end_date: e.target.value }))}
+                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary" />
             </div>
           </div>
-          <RoundedButton fullWidth onClick={handleSaveAnnouncement}>Salvar</RoundedButton>
+          <RoundedButton fullWidth onClick={handleSaveAnnouncement} disabled={isSavingAnnouncement}>
+            {isSavingAnnouncement ? <><Loader2 size={16} className="animate-spin" /> Salvando...</> : 'Salvar'}
+          </RoundedButton>
         </div>
       </Modal>
     </div>
