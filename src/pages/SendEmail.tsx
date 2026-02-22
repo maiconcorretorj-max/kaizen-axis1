@@ -85,22 +85,26 @@ CORRETORA: ${userName} - COORDENADOR: THALITA BELLO - GERENTE: MARVYN LANDES`;
         }),
       });
 
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Erro HTTP ${res.status}`);
+      }
+
       const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.resend_message || data.error || `Erro ${res.status}`);
+      if (data.error || (data.resend_ok === false)) {
+        const resendMsg = data.error
+          || data.resend_data?.message
+          || data.resend_data?.name
+          || JSON.stringify(data.resend_data);
+        throw new Error(resendMsg);
       }
 
-      if (data.resend_message) {
-        // Function returned 200 but Resend had an error
-        throw new Error(`Resend: ${data.resend_message}`);
-      }
-
-      alert('Email enviado com sucesso!');
+      alert('Email enviado com sucesso! ✅');
       navigate(-1);
     } catch (error: any) {
       console.error('Erro ao enviar e-mail:', error);
-      alert(`Erro ao enviar e-mail: ${error.message || 'Tente novamente.'}`);
+      alert(`Erro ao enviar e-mail:\n\n${error.message || 'Tente novamente.'}`);
     } finally {
       setIsSending(false);
     }
