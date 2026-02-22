@@ -437,8 +437,8 @@ export default function ChatDetail() {
         {messages.map(msg => (
           <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-lg p-3 shadow-sm ${msg.isMe
-                ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-tr-none'
-                : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-tl-none'
+              ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-tr-none'
+              : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-tl-none'
               }`}>
 
               {msg.type === 'image' && msg.mediaUrl && (
@@ -573,7 +573,7 @@ export default function ChatDetail() {
       <AnimatePresence>
         {isCameraOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black flex flex-col">
+            className="fixed inset-0 z-[200] bg-black flex flex-col">
             <div className="absolute top-0 left-0 right-0 p-4 flex justify-between z-10 bg-gradient-to-b from-black/50 to-transparent">
               <button onClick={stopCamera} className="text-white p-2 rounded-full hover:bg-white/20"><X size={28} /></button>
               <button onClick={() => { const m = cameraFacingMode === 'user' ? 'environment' : 'user'; setCameraFacingMode(m); startCamera(m); }} className="text-white p-2 rounded-full hover:bg-white/20"><SwitchCamera size={28} /></button>
@@ -586,7 +586,7 @@ export default function ChatDetail() {
                 </div>
               )}
             </div>
-            <div className="absolute bottom-0 left-0 right-0 p-8 flex justify-center gap-12 bg-gradient-to-t from-black/80 to-transparent">
+            <div className="absolute bottom-0 left-0 right-0 pt-12 pb-28 flex justify-center gap-16 bg-gradient-to-t from-black/90 to-transparent">
               <button onClick={takePhoto} disabled={isRecordingVideo} className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center disabled:opacity-50">
                 <div className="w-12 h-12 bg-white rounded-full" />
               </button>
