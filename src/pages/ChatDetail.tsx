@@ -1063,7 +1063,7 @@ export default function ChatDetail() {
         <AnimatePresence>
           {showAttachments && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-              className="absolute bottom-16 left-4 bg-card-bg rounded-xl shadow-xl p-4 grid grid-cols-2 gap-4 border border-surface-200 z-30">
+              className="absolute bottom-16 left-4 bg-card-bg rounded-xl shadow-xl p-4 grid grid-cols-3 gap-4 border border-surface-200 z-30">
               <button onClick={() => docInputRef.current?.click()} className="flex flex-col items-center gap-1">
                 <div className="w-12 h-12 rounded-full bg-purple-500 flex items-center justify-center text-white shadow-lg"><FileText size={20} /></div>
                 <span className="text-xs font-medium text-text-secondary">Arquivo</span>
@@ -1071,6 +1071,10 @@ export default function ChatDetail() {
               <button onClick={() => imageInputRef.current?.click()} className="flex flex-col items-center gap-1">
                 <div className="w-12 h-12 rounded-full bg-pink-500 flex items-center justify-center text-white shadow-lg"><ImageIcon size={20} /></div>
                 <span className="text-xs font-medium text-text-secondary">Galeria</span>
+              </button>
+              <button onClick={() => { setShowAttachments(false); startCamera(); }} className="flex flex-col items-center gap-1">
+                <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white shadow-lg"><Camera size={20} /></div>
+                <span className="text-xs font-medium text-text-secondary">Câmera</span>
               </button>
             </motion.div>
           )}
@@ -1107,11 +1111,7 @@ export default function ChatDetail() {
               placeholder="Mensagem"
               className="flex-1 bg-transparent border-none outline-none text-text-primary placeholder:text-text-secondary"
             />
-            {!isKAI && (
-              <button className="text-text-secondary hover:text-text-primary ml-2" onClick={() => startCamera()}>
-                <Camera size={20} />
-              </button>
-            )}
+
           </div>
         )}
 
