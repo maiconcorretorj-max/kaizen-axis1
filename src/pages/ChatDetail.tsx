@@ -1080,11 +1080,15 @@ export default function ChatDetail() {
           )}
         </AnimatePresence>
 
-        <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" onChange={e => handleFileUpload(e, 'document')} />
-        <input type="file" ref={imageInputRef} className="hidden" accept="image/*,video/*" onChange={e => {
-          const file = e.target.files?.[0];
-          if (file) handleFileUpload(e, file.type.startsWith('video/') ? 'video' : 'image');
-        }} />
+        {/* Arquivo: somente PDF */}
+        <input type="file" ref={docInputRef} className="hidden" accept=".pdf,application/pdf" onChange={e => handleFileUpload(e, 'document')} />
+        {/* Galeria: fototeca (imagens e vídeos do dispositivo, sem câmera) */}
+        <input type="file" ref={imageInputRef} className="hidden"
+          accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
+          onChange={e => {
+            const file = e.target.files?.[0];
+            if (file) handleFileUpload(e, file.type.startsWith('video/') ? 'video' : 'image');
+          }} />
 
         <button onClick={() => setShowAttachments(!showAttachments)} className="p-3 text-text-secondary hover:text-text-primary">
           {showAttachments ? <X size={24} /> : <Plus size={24} />}
