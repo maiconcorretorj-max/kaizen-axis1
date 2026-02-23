@@ -77,6 +77,9 @@ export default function AdminPanel() {
   const handleDirectorateChange = async (id: string, directorate_id: string | null) => {
     await updateProfile(id, { directorate_id: directorate_id || null });
   };
+  const handleManagerChange = async (id: string, manager_id: string | null) => {
+    await updateProfile(id, { manager_id: manager_id || null });
+  };
 
   // ── Team Actions ───────────────────────────────────────────────────────────
   const openTeamModal = (team?: Team) => {
@@ -195,6 +198,11 @@ export default function AdminPanel() {
                           className="text-xs bg-surface-50 border border-surface-200 rounded-lg p-1 focus:outline-none focus:border-gold-400">
                           <option value="">Sem Diretoria</option>
                           {directorates.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                        <select value={(u as any).manager_id ?? ''} onChange={e => handleManagerChange(u.id, e.target.value || null)}
+                          className="text-xs bg-surface-50 border border-surface-200 rounded-lg p-1 focus:outline-none focus:border-gold-400">
+                          <option value="">Sem Gestor</option>
+                          {allProfiles.filter(p => p.id !== u.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                       </div>
                     </PremiumCard>

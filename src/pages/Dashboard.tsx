@@ -21,14 +21,8 @@ export default function Dashboard() {
     return new Date(a.startDate) <= now && new Date(a.endDate) >= now;
   });
 
-  // ── Scope-based data filtering ──────────────────────────────────────────────
-  const scopedClients = (() => {
-    if (isAdmin) return clients;
-    if (isDirector || isManager || isCoordinator)
-      return clients.filter(c => (c as any).directorate_id === directorateId);
-    // CORRETOR — own clients only (RLS already filters server-side, but guard locally too)
-    return clients;
-  })();
+  // ── Data is already scoped by RLS on the backend ──────────────────────────
+  const scopedClients = clients;
 
   const totalSales = scopedClients.filter(c => c.stage === 'Concluído').length;
   const emAnalise = scopedClients.filter(c => c.stage === 'Em Análise').length;
