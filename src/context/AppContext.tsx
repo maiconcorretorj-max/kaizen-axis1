@@ -293,14 +293,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         address: data.address, profession: data.profession, gross_income: data.grossIncome,
         income_type: data.incomeType, cotista: data.cotista, social_factor: data.socialFactor,
         region_of_interest: data.regionOfInterest, development: data.development,
-        intended_value: data.intendedValue, observations: data.observations, stage: data.stage
+        intended_value: data.intendedValue, observations: data.observations, stage: data.stage,
+        owner_id: user?.id, directorate_id: profile?.directorate_id || null
       }]).select().single();
       if (error) throw error;
       await supabase.from('client_history').insert([{ client_id: newClient.id, action: 'Cliente criado', user_name: userName }]);
       await refreshClients();
       return newClient;
     } catch (e) { console.error('Erro ao adicionar cliente:', e); return null; }
-  }, [userName, refreshClients]);
+  }, [userName, refreshClients, user, profile]);
 
   const updateClient = useCallback(async (id: string, data: Partial<Client>) => {
     try {
@@ -368,11 +369,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addAppointment = useCallback(async (data: Omit<Appointment, 'id' | 'created_at'>) => {
     try {
-      const { error } = await supabase.from('appointments').insert([data]);
+      const { error } = await supabase.from('appointments').insert([{
+        ...data,
+        owner_id: user?.id,
+        directorate_id: profile?.directorate_id || null
+      }]);
       if (error) throw error;
       await refreshAppointments();
     } catch (e) { console.error('Erro ao adicionar agendamento:', e); }
-  }, [refreshAppointments]);
+  }, [refreshAppointments, user, profile]);
 
   const updateAppointment = useCallback(async (id: string, data: Partial<Appointment>) => {
     try {
@@ -402,11 +407,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addTask = useCallback(async (data: Omit<Task, 'id' | 'created_at'>) => {
     try {
-      const { error } = await supabase.from('tasks').insert([data]);
+      const { error } = await supabase.from('tasks').insert([{
+        ...data,
+        owner_id: user?.id,
+        directorate_id: profile?.directorate_id || null
+      }]);
       if (error) throw error;
       await refreshTasks();
     } catch (e) { console.error('Erro ao adicionar tarefa:', e); }
-  }, [refreshTasks]);
+  }, [refreshTasks, user, profile]);
 
   const updateTask = useCallback(async (id: string, data: Partial<Task>) => {
     try {
@@ -436,12 +445,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addDevelopment = useCallback(async (data: Omit<Development, 'id' | 'created_at'>): Promise<Development | null> => {
     try {
-      const { data: newDev, error } = await supabase.from('developments').insert([data]).select().single();
+      const { data: newDev, error } = await supabase.from('developments').insert([{
+        ...data,
+        owner_id: user?.id,
+        directorate_id: profile?.directorate_id || null
+      }]).select().single();
       if (error) throw error;
       await refreshDevelopments();
       return newDev;
     } catch (e) { console.error('Erro ao adicionar empreendimento:', e); return null; }
-  }, [refreshDevelopments]);
+  }, [refreshDevelopments, user, profile]);
 
   const updateDevelopment = useCallback(async (id: string, data: Partial<Development>) => {
     try {
@@ -505,11 +518,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addGoal = useCallback(async (data: Omit<Goal, 'id'>) => {
     try {
-      const { error } = await supabase.from('goals').insert([data]);
+      const { error } = await supabase.from('goals').insert([{
+        ...data,
+        owner_id: user?.id,
+        directorate_id: profile?.directorate_id || null
+      }]);
       if (error) throw error;
       await refreshGoals();
     } catch (e) { console.error('Erro ao adicionar meta:', e); }
-  }, [refreshGoals]);
+  }, [refreshGoals, user, profile]);
 
   const updateGoal = useCallback(async (id: string, data: Partial<Goal>) => {
     try {
@@ -539,11 +556,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addAnnouncement = useCallback(async (data: Omit<Announcement, 'id' | 'created_at'>) => {
     try {
-      const { error } = await supabase.from('announcements').insert([{ ...data, author_id: user?.id }]);
+      const { error } = await supabase.from('announcements').insert([{
+        ...data,
+        author_id: user?.id,
+        owner_id: user?.id,
+        directorate_id: profile?.directorate_id || null
+      }]);
       if (error) throw error;
       await refreshAnnouncements();
     } catch (e) { console.error('Erro ao adicionar anúncio:', e); }
-  }, [refreshAnnouncements, user]);
+  }, [refreshAnnouncements, user, profile]);
 
   const updateAnnouncement = useCallback(async (id: string, data: Partial<Announcement>) => {
     try {
