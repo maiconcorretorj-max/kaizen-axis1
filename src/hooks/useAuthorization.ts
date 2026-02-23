@@ -4,7 +4,10 @@ export type UserRole = 'ADMIN' | 'DIRETOR' | 'GERENTE' | 'COORDENADOR' | 'CORRET
 
 export function useAuthorization() {
     const { profile } = useApp();
-    const role = (profile?.role ?? 'CORRETOR') as UserRole;
+
+    // Normalize role casing to avoid mismatches like 'Corretor' !== 'CORRETOR'
+    const rawRole = profile?.role ?? 'CORRETOR';
+    const role = String(rawRole).toUpperCase() as UserRole;
 
     const isAdmin = role === 'ADMIN';
     const isDirector = role === 'DIRETOR';
