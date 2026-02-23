@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SectionHeader, PremiumCard, RoundedButton } from '@/components/ui/PremiumComponents';
 import { Users, Shield, Target, Megaphone, BarChart3, Plus, Search, Trophy, Download, FileSpreadsheet, FileText, Trash2, Edit2, ChevronDown, Calendar, Loader2, Building2 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';

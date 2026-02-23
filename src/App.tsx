@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { useAuthorization, UserRole } from '@/hooks/useAuthorization';
+import { useApp } from '@/context/AppContext';
 
 import Dashboard from '@/pages/Dashboard';
 import Clients from '@/pages/Clients';
@@ -27,13 +28,29 @@ import Onboarding from '@/pages/Onboarding';
 import PdfTools from '@/pages/PdfTools';
 import Portals from '@/pages/Portals';
 import Login from '@/pages/Login';
+import PendingApproval from '@/pages/PendingApproval';
 
 // ─── Auth guard (all authenticated users) ───────────────────────────────────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = localStorage.getItem('isAuthenticated');
   const hasCompletedOnboarding = localStorage.getItem('hasCompletedOnboarding');
+  const { profile, loading } = useApp();
+
+  // Show a blank loading screen (or simple spinner) while Auth context initializes
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-50 flex flex-col justify-center items-center">
+        <div className="w-8 h-8 rounded-full border-4 border-surface-200 border-t-gold-500 animate-spin" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (profile && (profile.status === 'Pendente' || profile.status === 'pending')) {
+    return <Navigate to="/pending" replace />;
+  }
+
   if (!hasCompletedOnboarding) return <Navigate to="/onboarding" replace />;
 
   return <Layout>{children}</Layout>;
@@ -52,8 +69,22 @@ function RoleRoute({
   const isAuthenticated = localStorage.getItem('isAuthenticated');
   const hasCompletedOnboarding = localStorage.getItem('hasCompletedOnboarding');
   const { role } = useAuthorization();
+  const { profile, loading } = useApp();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-50 flex flex-col justify-center items-center">
+        <div className="w-8 h-8 rounded-full border-4 border-surface-200 border-t-gold-500 animate-spin" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (profile && (profile.status === 'Pendente' || profile.status === 'pending')) {
+    return <Navigate to="/pending" replace />;
+  }
+
   if (!hasCompletedOnboarding) return <Navigate to="/onboarding" replace />;
   if (!allowed.includes(role)) return <Navigate to="/" replace />;
 
@@ -67,6 +98,7 @@ export default function App() {
         {/* Public */}
         <Route path="/login" element={<Login />} />
         <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/pending" element={<PendingApproval />} />
 
         {/* ── All authenticated roles ───────────────────────────────────── */}
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
