@@ -6,12 +6,22 @@ import { Session, User } from '@supabase/supabase-js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface Profile {
+export interface Directorate {
+  id: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+}
+
+export interface Profile {
   id: string;
   name: string;
   role: string;
   team?: string;
   status?: string;
+  directorate_id?: string | null;
+  manager_id?: string | null;
+  avatar_url?: string | null;
 }
 
 export interface Appointment {
@@ -170,6 +180,13 @@ interface AppContextValue {
   addAnnouncement: (data: Omit<Announcement, 'id' | 'created_at'>) => Promise<void>;
   updateAnnouncement: (id: string, data: Partial<Announcement>) => Promise<void>;
   deleteAnnouncement: (id: string) => Promise<void>;
+
+  // Admin - Diretorias
+  directorates: Directorate[];
+  refreshDirectorates: () => Promise<void>;
+  addDirectorate: (data: Omit<Directorate, 'id' | 'created_at'>) => Promise<void>;
+  updateDirectorate: (id: string, data: Partial<Directorate>) => Promise<void>;
+  deleteDirectorate: (id: string) => Promise<void>;
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -191,6 +208,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [directorates, setDirectorates] = useState<Directorate[]>([]);
   const [loading, setLoading] = useState(true);
 
   const userName = profile?.name || user?.email || 'Usuário';
@@ -543,6 +561,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { console.error('Erro ao deletar anúncio:', e); }
   }, [refreshAnnouncements]);
 
+  // ─── Directorates ─────────────────────────────────────────────
+
+  const refreshDirectorates = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('directorates').select('*').order('name');
+      if (error) throw error;
+      setDirectorates(data || []);
+    } catch (e) { console.error('Erro ao carregar diretorias:', e); }
+  }, []);
+
+  const addDirectorate = useCallback(async (data: Omit<Directorate, 'id' | 'created_at'>) => {
+    try {
+      const { error } = await supabase.from('directorates').insert(data);
+      if (error) throw error;
+      await refreshDirectorates();
+    } catch (e) { console.error('Erro ao criar diretoria:', e); }
+  }, [refreshDirectorates]);
+
+  const updateDirectorate = useCallback(async (id: string, data: Partial<Directorate>) => {
+    try {
+      const { error } = await supabase.from('directorates').update(data).eq('id', id);
+      if (error) throw error;
+      await refreshDirectorates();
+    } catch (e) { console.error('Erro ao atualizar diretoria:', e); }
+  }, [refreshDirectorates]);
+
+  const deleteDirectorate = useCallback(async (id: string) => {
+    try {
+      const { error } = await supabase.from('directorates').delete().eq('id', id);
+      if (error) throw error;
+      await refreshDirectorates();
+    } catch (e) { console.error('Erro ao deletar diretoria:', e); }
+  }, [refreshDirectorates]);
+
   // ─── Init ─────────────────────────────────────────────────────────────────
 
   const loadAllData = useCallback(async () => {
@@ -556,8 +608,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       refreshGoals(),
       refreshAnnouncements(),
       refreshProfiles(),
+      refreshDirectorates(),
     ]);
-  }, [refreshClients, refreshLeads, refreshAppointments, refreshTasks, refreshDevelopments, refreshTeams, refreshGoals, refreshAnnouncements, refreshProfiles]);
+  }, [refreshClients, refreshLeads, refreshAppointments, refreshTasks, refreshDevelopments, refreshTeams, refreshGoals, refreshAnnouncements, refreshProfiles, refreshDirectorates]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -615,6 +668,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       teams, refreshTeams, addTeam, updateTeam, deleteTeam,
       goals, refreshGoals, addGoal, updateGoal, deleteGoal,
       announcements, refreshAnnouncements, addAnnouncement, updateAnnouncement, deleteAnnouncement,
+      directorates, refreshDirectorates, addDirectorate, updateDirectorate, deleteDirectorate,
     }}>
       {children}
     </AppContext.Provider>

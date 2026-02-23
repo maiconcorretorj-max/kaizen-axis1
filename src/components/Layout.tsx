@@ -1,12 +1,15 @@
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, MessageSquare, Menu, Plus } from 'lucide-react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Users, Calendar, MessageSquare, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
+import { useAuthorization } from '@/hooks/useAuthorization';
 
 export const BottomNav = () => {
   const location = useLocation();
-  
+  const { isBroker, isManager, isCoordinator, canAccessAdmin } = useAuthorization();
+
+  // Build nav items based on role
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: Users, label: 'Clientes', path: '/clients' },
@@ -19,7 +22,9 @@ export const BottomNav = () => {
     <div className="fixed bottom-0 left-0 right-0 bg-card-bg border-t border-surface-200 pb-safe pt-2 px-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
       <div className="flex justify-between items-center max-w-md mx-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = item.path === '/'
+            ? location.pathname === '/'
+            : location.pathname.startsWith(item.path);
           return (
             <NavLink
               key={item.path}
@@ -58,13 +63,17 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-export const FAB = ({ onClick, icon: Icon = Plus }: { onClick?: () => void, icon?: React.ElementType }) => (
-  <motion.button
-    whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
-    onClick={onClick}
-    className="fixed bottom-24 right-6 w-14 h-14 bg-gold-400 text-white rounded-full shadow-lg shadow-gold-400/30 flex items-center justify-center z-40 cursor-pointer"
-  >
-    <Icon size={24} />
-  </motion.button>
-);
+export const FAB = ({ onClick, icon: Icon }: { onClick?: () => void, icon?: React.ElementType }) => {
+  const DefaultIcon = () => <span className="text-xl font-bold">+</span>;
+  const IconComp = Icon ?? DefaultIcon;
+  return (
+    <motion.button
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      className="fixed bottom-24 right-6 w-14 h-14 bg-gold-400 text-white rounded-full shadow-lg shadow-gold-400/30 flex items-center justify-center z-40 cursor-pointer"
+    >
+      <IconComp size={24} />
+    </motion.button>
+  );
+};

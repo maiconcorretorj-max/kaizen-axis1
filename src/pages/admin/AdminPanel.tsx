@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { SectionHeader, PremiumCard, RoundedButton } from '@/components/ui/PremiumComponents';
-import { Users, Shield, Target, Megaphone, BarChart3, Plus, Search, Trophy, Download, FileSpreadsheet, FileText, Trash2, Edit2, ChevronDown, Calendar, Loader2 } from 'lucide-react';
+import { Users, Shield, Target, Megaphone, BarChart3, Plus, Search, Trophy, Download, FileSpreadsheet, FileText, Trash2, Edit2, ChevronDown, Calendar, Loader2, Building2 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import { useApp, Team, Goal, Announcement } from '@/context/AppContext';
+import { useApp, Team, Goal, Announcement, Directorate } from '@/context/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-type Tab = 'users' | 'teams' | 'goals' | 'announcements' | 'reports';
+type Tab = 'users' | 'teams' | 'goals' | 'announcements' | 'reports' | 'directorates';
 
 export default function AdminPanel() {
   const {
@@ -13,6 +13,7 @@ export default function AdminPanel() {
     teams, addTeam, updateTeam, deleteTeam,
     goals, addGoal, updateGoal, deleteGoal,
     announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement,
+    directorates, addDirectorate, updateDirectorate, deleteDirectorate,
     clients, appointments,
     loading, user
   } = useApp();
@@ -43,6 +44,12 @@ export default function AdminPanel() {
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
+  // Directorate modal
+  const [isDirModalOpen, setIsDirModalOpen] = useState(false);
+  const [editingDir, setEditingDir] = useState<Directorate | null>(null);
+  const [dirForm, setDirForm] = useState<Partial<Directorate>>({ name: '', description: '' });
+  const [isSavingDir, setIsSavingDir] = useState(false);
+
   // Reports
   const [reportView, setReportView] = useState<'Teams' | 'Brokers'>('Teams');
   const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
@@ -60,6 +67,9 @@ export default function AdminPanel() {
   };
   const handleRoleChange = async (id: string, role: string) => {
     await updateProfile(id, { role });
+  };
+  const handleDirectorateChange = async (id: string, directorate_id: string | null) => {
+    await updateProfile(id, { directorate_id: directorate_id || null });
   };
 
   // ── Team Actions ───────────────────────────────────────────────────────────
@@ -170,10 +180,17 @@ export default function AdminPanel() {
                         <div className="w-10 h-10 rounded-full bg-surface-200 flex items-center justify-center text-text-primary font-bold text-sm">{(u.name || '?').charAt(0)}</div>
                         <div><p className="font-semibold text-text-primary">{u.name}</p><p className="text-xs text-text-secondary">{u.role}</p></div>
                       </div>
-                      <select value={u.role} onChange={e => handleRoleChange(u.id, e.target.value)}
-                        className="text-xs bg-surface-50 border border-surface-200 rounded-lg p-1 focus:outline-none focus:border-gold-400">
-                        {['Corretor', 'Gerente', 'Coordenador', 'Diretor', 'Administrador'].map(r => <option key={r}>{r}</option>)}
-                      </select>
+                      <div className="flex flex-col gap-1 items-end">
+                        <select value={u.role} onChange={e => handleRoleChange(u.id, e.target.value)}
+                          className="text-xs bg-surface-50 border border-surface-200 rounded-lg p-1 focus:outline-none focus:border-gold-400">
+                          {['CORRETOR', 'COORDENADOR', 'GERENTE', 'DIRETOR', 'ADMIN'].map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                        <select value={(u as any).directorate_id ?? ''} onChange={e => handleDirectorateChange(u.id, e.target.value || null)}
+                          className="text-xs bg-surface-50 border border-surface-200 rounded-lg p-1 focus:outline-none focus:border-gold-400">
+                          <option value="">Sem Diretoria</option>
+                          {directorates.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                      </div>
                     </PremiumCard>
                   ))}
               </div>
@@ -334,6 +351,46 @@ export default function AdminPanel() {
             </div>
           </div>
         );
+
+      case 'directorates':
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <RoundedButton size="sm" onClick={() => {
+                setEditingDir(null);
+                setDirForm({ name: '', description: '' });
+                setIsDirModalOpen(true);
+              }}>
+                <Plus size={16} className="mr-1" /> Nova Diretoria
+              </RoundedButton>
+            </div>
+            {loading ? <Loader2 size={24} className="animate-spin mx-auto text-gold-400 py-4" /> :
+              directorates.map(d => (
+                <PremiumCard key={d.id} className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gold-100 dark:bg-gold-900/30 flex items-center justify-center">
+                      <Building2 size={18} className="text-gold-600 dark:text-gold-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-text-primary">{d.name}</p>
+                      {d.description && <p className="text-xs text-text-secondary">{d.description}</p>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setEditingDir(d); setDirForm({ ...d }); setIsDirModalOpen(true); }}
+                      className="p-2 rounded-lg hover:bg-surface-100 text-text-secondary">
+                      <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => { if (confirm('Excluir esta diretoria?')) deleteDirectorate(d.id); }}
+                      className="p-2 rounded-lg hover:bg-red-50 text-red-500">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </PremiumCard>
+              ))
+            }
+          </div>
+        );
     }
   };
 
@@ -348,6 +405,7 @@ export default function AdminPanel() {
           { id: 'goals', label: 'Metas', icon: Target },
           { id: 'announcements', label: 'Anúncios', icon: Megaphone },
           { id: 'reports', label: 'Relatórios', icon: BarChart3 },
+          { id: 'directorates', label: 'Diretorias', icon: Building2 },
         ].map((tab) => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as Tab)}
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${activeTab === tab.id ? 'bg-gold-500 text-white shadow-md shadow-gold-500/20' : 'bg-white dark:bg-surface-100 text-text-secondary border border-surface-200'}`}>
@@ -481,6 +539,35 @@ export default function AdminPanel() {
           </div>
           <RoundedButton fullWidth onClick={handleSaveAnnouncement} disabled={isSavingAnnouncement}>
             {isSavingAnnouncement ? <><Loader2 size={16} className="animate-spin" /> Salvando...</> : 'Salvar'}
+          </RoundedButton>
+        </div>
+      </Modal>
+
+      {/* Directorate Modal */}
+      <Modal isOpen={isDirModalOpen} onClose={() => setIsDirModalOpen(false)} title={editingDir ? 'Editar Diretoria' : 'Nova Diretoria'}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Nome da Diretoria</label>
+            <input value={dirForm.name || ''} onChange={e => setDirForm(p => ({ ...p, name: e.target.value }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary"
+              placeholder="Ex: DIRETORIA COMERCIAL" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Descrição (opcional)</label>
+            <textarea value={dirForm.description || ''} onChange={e => setDirForm(p => ({ ...p, description: e.target.value }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary h-20"
+              placeholder="Descreva a diretoria..." />
+          </div>
+          <RoundedButton fullWidth onClick={async () => {
+            if (!dirForm.name) return;
+            setIsSavingDir(true);
+            try {
+              if (editingDir) await updateDirectorate(editingDir.id, dirForm);
+              else await addDirectorate({ name: dirForm.name, description: dirForm.description });
+              setIsDirModalOpen(false);
+            } finally { setIsSavingDir(false); }
+          }} disabled={isSavingDir}>
+            {isSavingDir ? <><Loader2 size={16} className="animate-spin" /> Salvando...</> : 'Salvar Diretoria'}
           </RoundedButton>
         </div>
       </Modal>
