@@ -583,6 +583,13 @@ export default function ChatDetail() {
     };
   }, []);
 
+  // ─── Assign camera stream to video element once it mounts (♥ fixes black screen) ───
+  useEffect(() => {
+    if (isCameraOpen && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [isCameraOpen]);
+
   // ─── Typing presence broadcast ────────────────────────────────────────────
   const handleInputChange = (value: string) => {
     setInputValue(value);
@@ -725,7 +732,8 @@ export default function ChatDetail() {
       streamRef.current?.getTracks().forEach(t => t.stop());
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true });
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      // Don't assign srcObject here — the <video> element isn't mounted yet.
+      // The useEffect above will assign it once isCameraOpen flips to true.
       setIsCameraOpen(true);
     } catch {
       alert('Não foi possível acessar a câmera. Verifique as permissões.');
