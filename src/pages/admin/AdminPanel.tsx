@@ -3,11 +3,17 @@ import { SectionHeader, PremiumCard, RoundedButton } from '@/components/ui/Premi
 import { Users, Shield, Target, Megaphone, BarChart3, Plus, Search, Trophy, Download, FileSpreadsheet, FileText, Trash2, Edit2, ChevronDown, Calendar, Loader2, Building2 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useApp, Team, Goal, Announcement, Directorate } from '@/context/AppContext';
+import { useAuthorization } from '@/hooks/useAuthorization';
+import { Navigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 type Tab = 'users' | 'teams' | 'goals' | 'announcements' | 'reports' | 'directorates';
 
 export default function AdminPanel() {
+  // ── Hard role guard: only ADMIN can access this page ────────────────────────
+  const { isAdmin } = useAuthorization();
+  if (!isAdmin) return <Navigate to="/" replace />;
+
   const {
     allProfiles, updateProfile, refreshProfiles,
     teams, addTeam, updateTeam, deleteTeam,
