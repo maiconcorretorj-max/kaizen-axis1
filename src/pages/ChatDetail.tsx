@@ -94,8 +94,17 @@ const ViewOnceModal = ({
     let url = '';
     const fetchUrl = async () => {
       setLoading(true);
+      // Get the current user session to pass the bearer token to the Edge Function
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        setError('Sessão expirada. Faça login novamente.');
+        setLoading(false);
+        return;
+      }
       const { data, error: fnError } = await supabase.functions.invoke('generate-view-once-url', {
         body: { message_id: messageId },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (fnError || !data?.signedUrl) {
         setError('Não foi possível abrir a mídia.');
@@ -961,8 +970,8 @@ export default function ChatDetail() {
           return (
             <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] relative shadow-sm ${msg.isMe
-                  ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-2xl rounded-tr-none'
-                  : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-2xl rounded-tl-none'
+                ? 'bg-[#D9FDD3] dark:bg-[#005c4b] text-gray-900 dark:text-white rounded-2xl rounded-tr-none'
+                : 'bg-white dark:bg-[#202c33] text-gray-900 dark:text-white rounded-2xl rounded-tl-none'
                 } ${isMediaOnly ? 'p-1 pb-6' : 'p-3'}`}>
 
                 {/* ── VIEW ONCE badge for sender ── */}
@@ -1185,8 +1194,8 @@ export default function ChatDetail() {
                 <button
                   onClick={() => setIsViewOnce(v => !v)}
                   className={`flex items-center gap-2 self-center px-4 py-2 rounded-full border text-sm font-medium transition-colors ${isViewOnce
-                      ? 'bg-gold-500 border-gold-500 text-white'
-                      : 'bg-white/10 border-white/20 text-white/70'
+                    ? 'bg-gold-500 border-gold-500 text-white'
+                    : 'bg-white/10 border-white/20 text-white/70'
                     }`}
                 >
                   {isViewOnce ? <Lock size={14} /> : <Eye size={14} />}
