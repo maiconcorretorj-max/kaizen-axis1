@@ -61,16 +61,20 @@ export default function AdminPanel() {
   const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
   const [reportDateRange, setReportDateRange] = useState({ start: '', end: '' });
 
-  const pendingUsers = allProfiles.filter(u => u.status === 'Pendente' || u.status === 'pending');
-  const activeUsers = allProfiles.filter(u => (u.status === 'active' || u.status === 'Ativo') && u.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+  // Approval Modal
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [selectedPendingUserId, setSelectedPendingUserId] = useState<string | null>(null);
+  const [approvalForm, setApprovalForm] = useState({ role: 'CORRETOR', directorate_id: '', team_id: '' });
+  const [isSavingApproval, setIsSavingApproval] = useState(false);
+
+  useEffect(() => {
+    refreshProfiles();
+  }, [refreshProfiles]);
+
+  const pendingUsers = allProfiles.filter(p => p.status === 'pending' || p.status === 'Pendente');
+  const activeUsers = allProfiles.filter(p => (p.status === 'active' || p.status === 'Ativo') && p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
   // ── Users Actions ──────────────────────────────────────────────────────────
-  const handleApproveUser = async (id: string) => {
-    await updateProfile(id, { status: 'active' });
-  };
-  const handleRejectUser = async (id: string) => {
-    if (confirm('Rejeitar e remover este usuário?')) await updateProfile(id, { status: 'rejected' });
-  };
   const handleRoleChange = async (id: string, role: string) => {
     await updateProfile(id, { role });
   };
@@ -79,6 +83,55 @@ export default function AdminPanel() {
   };
   const handleManagerChange = async (id: string, manager_id: string | null) => {
     await updateProfile(id, { manager_id: manager_id || null });
+  };
+
+  // ── Approval Flow ──────────────────────────────────────────────────────────
+  const handleOpenApprovalModal = (userId: string) => {
+    setSelectedPendingUserId(userId);
+    setApprovalForm({ role: 'CORRETOR', directorate_id: '', team_id: '' });
+    setIsApprovalModalOpen(true);
+  };
+
+  const handleConfirmApproval = async () => {
+    if (!selectedPendingUserId) return;
+    setIsSavingApproval(true);
+    try {
+      const selectedTeam = teams.find(t => t.id === approvalForm.team_id);
+
+      const updateData: any = {
+        role: approvalForm.role,
+        status: 'Ativo',
+        directorate_id: approvalForm.directorate_id || null,
+        team: approvalForm.team_id || undefined,
+        manager_id: null
+      };
+
+      // Se escolheu uma equipe, a diretoria e o gestor herdaram dessa equipe
+      if (selectedTeam) {
+        updateData.directorate_id = selectedTeam.directorate_id || null;
+        updateData.manager_id = selectedTeam.manager_id || null;
+
+        // Adiciona o usuário na array `members` da equipe selecionada
+        const currentMembers = selectedTeam.members || [];
+        if (!currentMembers.includes(selectedPendingUserId)) {
+          await updateTeam(selectedTeam.id, { members: [...currentMembers, selectedPendingUserId] });
+        }
+      }
+
+      await updateProfile(selectedPendingUserId, updateData);
+      setIsApprovalModalOpen(false);
+      setSelectedPendingUserId(null);
+    } catch (e) {
+      console.error('Erro ao aprovar usuário:', e);
+    } finally {
+      setIsSavingApproval(false);
+    }
+  };
+
+  const handleRejectUser = async (id: string) => {
+    if (confirm('Rejeitar este usuário?')) {
+      await updateProfile(id, { status: 'rejected' });
+    }
   };
 
   // ── Team Actions ───────────────────────────────────────────────────────────
@@ -170,7 +223,7 @@ export default function AdminPanel() {
                         <div><p className="font-semibold text-text-primary">{u.name}</p><p className="text-xs text-text-secondary">{u.role}</p></div>
                       </div>
                       <div className="flex gap-2">
-                        <RoundedButton size="sm" onClick={() => handleApproveUser(u.id)} className="bg-green-500 hover:bg-green-600 text-white border-0 text-xs">Aprovar</RoundedButton>
+                        <RoundedButton size="sm" onClick={() => handleOpenApprovalModal(u.id)} className="bg-green-500 hover:bg-green-600 text-white border-0 text-xs">Aprovar</RoundedButton>
                         <RoundedButton size="sm" variant="outline" onClick={() => handleRejectUser(u.id)} className="text-red-500 border-red-300 text-xs">Rejeitar</RoundedButton>
                       </div>
                     </PremiumCard>
@@ -442,6 +495,47 @@ export default function AdminPanel() {
       </div>
 
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">{renderTabContent()}</div>
+
+      {/* Approval Modal */}
+      <Modal isOpen={isApprovalModalOpen} onClose={() => setIsApprovalModalOpen(false)} title="Aprovar Usuário">
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary mb-4">
+            Defina as permissões iniciais deste usuário antes de ativá-lo no sistema.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Cargo</label>
+            <select value={approvalForm.role} onChange={e => setApprovalForm(p => ({ ...p, role: e.target.value }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary">
+              {['CORRETOR', 'COORDENADOR', 'GERENTE', 'DIRETOR', 'ADMIN'].map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Diretoria</label>
+            <select value={approvalForm.directorate_id} onChange={e => setApprovalForm(p => ({ ...p, directorate_id: e.target.value, team_id: '' }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary">
+              <option value="">Nenhuma / Global</option>
+              {directorates.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Equipe</label>
+            <select value={approvalForm.team_id} onChange={e => setApprovalForm(p => ({ ...p, team_id: e.target.value }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary disabled:opacity-50"
+              disabled={!approvalForm.directorate_id && teams.length > 0}>
+              <option value="">Sem Equipe</option>
+              {teams
+                .filter(t => !approvalForm.directorate_id || t.directorate_id === approvalForm.directorate_id)
+                .map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            {approvalForm.team_id && (
+              <p className="text-xs text-green-600 mt-1">✓ O Gestor e a Diretoria serão herdados desta equipe automaticamente.</p>
+            )}
+          </div>
+          <RoundedButton fullWidth onClick={handleConfirmApproval} disabled={isSavingApproval} className="mt-2">
+            {isSavingApproval ? <><Loader2 size={16} className="animate-spin" /> Salvando...</> : 'Confirmar Aprovação'}
+          </RoundedButton>
+        </div>
+      </Modal>
 
       {/* Team Modal */}
       <Modal isOpen={isTeamModalOpen} onClose={() => setIsTeamModalOpen(false)} title={editingTeam ? 'Editar Equipe' : 'Nova Equipe'}>
