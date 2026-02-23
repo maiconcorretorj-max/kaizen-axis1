@@ -12,7 +12,7 @@ import { useAuthorization } from '@/hooks/useAuthorization';
 export default function Dashboard() {
   const navigate = useNavigate();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const { clients, appointments, goals, userName, loading, directorates } = useApp();
+  const { clients, appointments, goals, userName, loading, directorates, allProfiles } = useApp();
   const { isAdmin, isDirector, isManager, isCoordinator, isBroker, directorateId, role } = useAuthorization();
 
   // Active announcements
@@ -40,6 +40,11 @@ export default function Dashboard() {
     COORDENADOR: '📋 Coordenador',
     CORRETOR: '🏠 Corretor',
   };
+
+  // Ranking Mock for Corretor (In a real scenario, fetch total_sales from backend)
+  const topCorretores = [...allProfiles]
+    .filter(p => p.role === 'CORRETOR' || p.role === 'Corretor' || p.role === 'corretor')
+    .slice(0, 3);
 
   return (
     <div className="p-6 space-y-8">
@@ -145,6 +150,126 @@ export default function Dashboard() {
             </PremiumCard>
           </div>
           <section><FunnelChart /></section>
+        </>
+      )}
+
+      {/* ── CORRETOR: Personal Metrics ─────────────────────────────────────── */}
+      {isBroker && (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <PremiumCard highlight className="col-span-2 flex justify-between items-center cursor-pointer"
+              onClick={() => navigate('/clients')}>
+              <div>
+                <p className="text-sm text-gold-700 dark:text-gold-400 font-medium uppercase tracking-wider">Meu Desempenho (Mês Atual)</p>
+                <div className="mt-3 flex gap-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-text-primary">{totalSales}</h3>
+                    <p className="text-[10px] text-text-secondary uppercase font-bold tracking-wider mt-1">Vendas</p>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-text-primary">{totalClients}</h3>
+                    <p className="text-[10px] text-text-secondary uppercase font-bold tracking-wider mt-1">Pastas</p>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-text-primary">{upcomingAppointments.length}</h3>
+                    <p className="text-[10px] text-text-secondary uppercase font-bold tracking-wider mt-1">Agendamentos</p>
+                  </div>
+                </div>
+              </div>
+              <div className="hidden sm:flex h-12 w-12 rounded-full bg-gold-100 dark:bg-gold-900/40 items-center justify-center text-gold-600 font-bold text-xl">
+                <Target size={24} />
+              </div>
+            </PremiumCard>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
+
+            {/* Appointments */}
+            <section>
+              <SectionHeader title="Meus Agendamentos" subtitle="Próximos compromissos" />
+              <div className="space-y-3">
+                {upcomingAppointments.length === 0 ? (
+                  <PremiumCard className="text-center py-6">
+                    <Calendar className="mx-auto mb-2 text-surface-300 dark:text-surface-700" size={32} />
+                    <p className="text-text-secondary text-sm">Sua agenda está livre na semana.</p>
+                  </PremiumCard>
+                ) : (
+                  upcomingAppointments.map((app) => (
+                    <PremiumCard key={app.id} className="cursor-pointer hover:bg-surface-50 transition-colors"
+                      onClick={() => navigate('/schedule')}>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-semibold text-text-primary">{app.title}</p>
+                          <p className="text-xs text-text-secondary mt-1">{app.date} às {app.time} • {app.type}</p>
+                          {app.client_name && <p className="text-xs text-gold-600 font-medium mt-1">{app.client_name}</p>}
+                        </div>
+                      </div>
+                    </PremiumCard>
+                  ))
+                )}
+              </div>
+            </section>
+
+            {/* Goals */}
+            <section>
+              <SectionHeader title="Missões e Metas" subtitle="Objetivos pessoais" />
+              <div className="space-y-3">
+                {goals.slice(0, 3).length === 0 ? (
+                  <PremiumCard className="text-center py-6">
+                    <Target className="mx-auto mb-2 text-surface-300 dark:text-surface-700" size={32} />
+                    <p className="text-text-secondary text-sm">Nenhuma meta ativa atribuída.</p>
+                  </PremiumCard>
+                ) : (
+                  goals.slice(0, 3).map((goal) => (
+                    <PremiumCard key={goal.id}>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-semibold text-text-primary text-sm line-clamp-1">{goal.title}</span>
+                        <span className="text-xs font-bold text-gold-600 ml-2 whitespace-nowrap">{goal.points} pts</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-surface-200 rounded-full overflow-hidden mb-1">
+                        <div
+                          className="h-full bg-gold-400 rounded-full transition-all duration-1000"
+                          style={{ width: `${Math.min(100, ((goal.current_progress || 0) / (goal.target || 1)) * 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-text-secondary font-medium tracking-wide">
+                        <span>PROGRESSO</span>
+                        <span>{goal.current_progress || 0} DE {goal.target}</span>
+                      </div>
+                    </PremiumCard>
+                  ))
+                )}
+              </div>
+            </section>
+
+            {/* Mock Ranking */}
+            <section className="lg:col-span-2">
+              <SectionHeader title="Ranking de Corretores" subtitle="Top 3 da semana" />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {topCorretores.length === 0 ? (
+                  <PremiumCard className="col-span-full text-center py-6">
+                    <p className="text-text-secondary text-sm">Sem dados de ranking no momento.</p>
+                  </PremiumCard>
+                ) : (
+                  topCorretores.map((p, i) => (
+                    <PremiumCard key={p.id} className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold
+                        ${i === 0 ? 'bg-amber-500 shadow-lg shadow-amber-500/20' : i === 1 ? 'bg-slate-400' : 'bg-amber-700'}
+                      `}>
+                        {i + 1}º
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-text-primary text-sm truncate">{p.name || 'Usuário'}</p>
+                        <p className="text-[10px] text-text-secondary uppercase">{p.role}</p>
+                      </div>
+                    </PremiumCard>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+
+          <section className="mt-8"><FunnelChart /></section>
         </>
       )}
 

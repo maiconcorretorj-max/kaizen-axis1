@@ -5,10 +5,12 @@ import { Search, MapPin, Building2, Filter, ChevronRight, Plus, Upload, X, FileT
 import { FAB } from '@/components/Layout';
 import { Modal } from '@/components/ui/Modal';
 import { useApp, Development } from '@/context/AppContext';
+import { useAuthorization } from '@/hooks/useAuthorization';
 
 export default function Developments() {
   const navigate = useNavigate();
   const { developments, addDevelopment, loading } = useApp();
+  const { isBroker } = useAuthorization();
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -77,9 +79,11 @@ export default function Developments() {
     <div className="p-6 pb-24 min-h-screen bg-surface-50">
       <div className="flex justify-between items-start mb-4">
         <SectionHeader title="Empreendimentos" subtitle="Catálogo exclusivo" />
-        <RoundedButton size="sm" onClick={() => setIsModalOpen(true)} className="flex items-center gap-1 mt-2">
-          <Plus size={16} /> Novo
-        </RoundedButton>
+        {!isBroker && (
+          <RoundedButton size="sm" onClick={() => setIsModalOpen(true)} className="flex items-center gap-1 mt-2">
+            <Plus size={16} /> Novo
+          </RoundedButton>
+        )}
       </div>
 
       <div className="flex gap-3 mb-6">
@@ -101,9 +105,11 @@ export default function Developments() {
           <div className="text-center py-16 text-text-secondary">
             <Building2 size={48} className="mx-auto mb-3 opacity-30" />
             <p className="font-medium">Nenhum empreendimento cadastrado</p>
-            <RoundedButton size="sm" className="mt-4 mx-auto" onClick={() => setIsModalOpen(true)}>
-              <Plus size={14} className="mr-1" /> Adicionar Empreendimento
-            </RoundedButton>
+            {!isBroker && (
+              <RoundedButton size="sm" className="mt-4 mx-auto" onClick={() => setIsModalOpen(true)}>
+                <Plus size={14} className="mr-1" /> Adicionar Empreendimento
+              </RoundedButton>
+            )}
           </div>
         ) : (
           filteredDevelopments.map((dev) => (

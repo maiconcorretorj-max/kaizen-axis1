@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PremiumCard, SectionHeader, RoundedButton } from '@/components/ui/PremiumComponents';
 import { Globe, Plus, Edit2, Trash2, ExternalLink, Search, Building2, Landmark } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
+import { useAuthorization } from '@/hooks/useAuthorization';
 
 interface Portal {
   id: string;
@@ -43,6 +44,7 @@ const INITIAL_PORTALS: Portal[] = [
 ];
 
 export default function Portals() {
+  const { isBroker } = useAuthorization();
   const [portals, setPortals] = useState<Portal[]>(INITIAL_PORTALS);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,7 +56,7 @@ export default function Portals() {
     description: ''
   });
 
-  const filteredPortals = portals.filter(portal => 
+  const filteredPortals = portals.filter(portal =>
     portal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     portal.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -85,7 +87,7 @@ export default function Portals() {
     }
 
     if (editingPortal) {
-      setPortals(prev => prev.map(p => 
+      setPortals(prev => prev.map(p =>
         p.id === editingPortal.id ? { ...p, ...formData, url } as Portal : p
       ));
     } else {
@@ -117,16 +119,18 @@ export default function Portals() {
     <div className="p-6 pb-24 min-h-screen bg-surface-50">
       <div className="flex justify-between items-start mb-4">
         <SectionHeader title="Portais" subtitle="Acesso rápido" />
-        <RoundedButton size="sm" onClick={() => handleOpenModal()} className="flex items-center gap-1 mt-2">
-          <Plus size={16} /> Novo
-        </RoundedButton>
+        {!isBroker && (
+          <RoundedButton size="sm" onClick={() => handleOpenModal()} className="flex items-center gap-1 mt-2">
+            <Plus size={16} /> Novo
+          </RoundedButton>
+        )}
       </div>
 
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
-        <input 
-          type="text" 
-          placeholder="Buscar portal..." 
+        <input
+          type="text"
+          placeholder="Buscar portal..."
           className="w-full pl-10 pr-4 py-3 bg-card-bg rounded-xl text-sm shadow-sm border border-surface-200 focus:outline-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary placeholder:text-text-secondary"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -139,7 +143,7 @@ export default function Portals() {
             <div className="w-12 h-12 rounded-xl bg-surface-100 flex items-center justify-center flex-shrink-0">
               {getIcon(portal.category)}
             </div>
-            
+
             <div className="flex-1 min-w-0 cursor-pointer" onClick={() => window.open(portal.url, '_blank')}>
               <h4 className="font-bold text-text-primary truncate flex items-center gap-2">
                 {portal.name}
@@ -148,20 +152,22 @@ export default function Portals() {
               <p className="text-xs text-text-secondary truncate">{portal.description || portal.url}</p>
             </div>
 
-            <div className="flex gap-2">
-              <button 
-                onClick={() => handleOpenModal(portal)}
-                className="p-2 text-text-secondary hover:text-gold-600 hover:bg-surface-100 rounded-full transition-colors"
-              >
-                <Edit2 size={16} />
-              </button>
-              <button 
-                onClick={() => handleDelete(portal.id)}
-                className="p-2 text-text-secondary hover:text-red-500 hover:bg-surface-100 rounded-full transition-colors"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
+            {!isBroker && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleOpenModal(portal)}
+                  className="p-2 text-text-secondary hover:text-gold-600 hover:bg-surface-100 rounded-full transition-colors"
+                >
+                  <Edit2 size={16} />
+                </button>
+                <button
+                  onClick={() => handleDelete(portal.id)}
+                  className="p-2 text-text-secondary hover:text-red-500 hover:bg-surface-100 rounded-full transition-colors"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            )}
           </PremiumCard>
         ))}
 
@@ -180,7 +186,7 @@ export default function Portals() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Nome</label>
-            <input 
+            <input
               value={formData.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
@@ -190,7 +196,7 @@ export default function Portals() {
 
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">URL</label>
-            <input 
+            <input
               value={formData.url}
               onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
               className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
@@ -200,7 +206,7 @@ export default function Portals() {
 
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Categoria</label>
-            <select 
+            <select
               value={formData.category}
               onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value as any }))}
               className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
@@ -213,7 +219,7 @@ export default function Portals() {
 
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Descrição</label>
-            <input 
+            <input
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
