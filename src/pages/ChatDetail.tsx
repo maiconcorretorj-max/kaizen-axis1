@@ -431,6 +431,7 @@ export default function ChatDetail() {
 
   // Camera
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null); // state so useEffect fires on switch
   const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('environment');
   const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -583,12 +584,13 @@ export default function ChatDetail() {
     };
   }, []);
 
-  // ─── Assign camera stream to video element once it mounts (♥ fixes black screen) ───
+  // ─── Assign camera stream to video element whenever stream changes ───────────────────
+  // (fires on first open AND on camera switch because cameraStream is state, not a ref)
   useEffect(() => {
-    if (isCameraOpen && streamRef.current && videoRef.current) {
-      videoRef.current.srcObject = streamRef.current;
+    if (videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream;
     }
-  }, [isCameraOpen]);
+  }, [cameraStream]);
 
   // ─── Typing presence broadcast ────────────────────────────────────────────
   const handleInputChange = (value: string) => {
@@ -732,8 +734,7 @@ export default function ChatDetail() {
       streamRef.current?.getTracks().forEach(t => t.stop());
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true });
       streamRef.current = stream;
-      // Don't assign srcObject here — the <video> element isn't mounted yet.
-      // The useEffect above will assign it once isCameraOpen flips to true.
+      setCameraStream(stream); // state update → triggers useEffect → assigns srcObject after render
       setIsCameraOpen(true);
     } catch {
       alert('Não foi possível acessar a câmera. Verifique as permissões.');
@@ -743,6 +744,7 @@ export default function ChatDetail() {
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
+    setCameraStream(null);
     setIsCameraOpen(false);
     setIsRecordingVideo(false);
   };
