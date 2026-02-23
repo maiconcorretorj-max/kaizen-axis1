@@ -84,7 +84,7 @@ export default function AdminPanel() {
   // ── Team Actions ───────────────────────────────────────────────────────────
   const openTeamModal = (team?: Team) => {
     if (team) { setEditingTeam(team); setTeamForm({ ...team }); }
-    else { setEditingTeam(null); setTeamForm({ name: '', directorate: '' }); }
+    else { setEditingTeam(null); setTeamForm({ name: '', directorate_id: '', manager_id: '' }); }
     setIsTeamModalOpen(true);
   };
   const handleSaveTeam = async () => {
@@ -101,9 +101,15 @@ export default function AdminPanel() {
     const team = teams.find(t => t.id === teamId);
     if (!team) return;
     const members = team.members || [];
-    const newMembers = members.includes(userId) ? members.filter(id => id !== userId) : [...members, userId];
+    const isAdding = !members.includes(userId);
+    const newMembers = isAdding ? [...members, userId] : members.filter(id => id !== userId);
+
     await updateTeam(teamId, { members: newMembers });
-    await updateProfile(userId, { team: members.includes(userId) ? undefined : teamId });
+    await updateProfile(userId, {
+      team: isAdding ? teamId : undefined,
+      directorate_id: isAdding ? (team.directorate_id || null) : undefined,
+      manager_id: isAdding ? (team.manager_id || null) : undefined
+    });
   };
 
   // ── Goal Actions ───────────────────────────────────────────────────────────
@@ -220,22 +226,29 @@ export default function AdminPanel() {
             </div>
             {loading ? <Loader2 size={24} className="animate-spin mx-auto text-gold-400 py-4" /> :
               teams.length === 0 ? <p className="text-center text-text-secondary py-8">Nenhuma equipe cadastrada.</p> :
-                teams.map(team => (
-                  <PremiumCard key={team.id} className="p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h4 className="font-bold text-text-primary">{team.name}</h4>
-                        {team.directorate && <p className="text-xs text-text-secondary">{team.directorate}</p>}
+                teams.map(team => {
+                  const dirName = directorates.find(d => d.id === team.directorate_id)?.name;
+                  const mgrName = allProfiles.find(p => p.id === team.manager_id)?.name;
+                  return (
+                    <PremiumCard key={team.id} className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="font-bold text-text-primary">{team.name}</h4>
+                          <div className="flex flex-col gap-0.5 mt-1">
+                            {dirName && <p className="text-xs text-text-secondary">🏢 {dirName}</p>}
+                            {mgrName && <p className="text-xs text-text-secondary">👤 Gestor: {mgrName}</p>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 items-start">
+                          <button onClick={() => openTeamModal(team)} className="p-1.5 bg-surface-50 rounded-full hover:text-gold-600"><Edit2 size={14} /></button>
+                          <button onClick={() => { setSelectedTeamId(team.id); setIsMembersModalOpen(true); }} className="p-1.5 bg-surface-50 rounded-full hover:text-blue-600"><Users size={14} /></button>
+                          <button onClick={() => { if (confirm('Excluir equipe?')) deleteTeam(team.id); }} className="p-1.5 bg-surface-50 rounded-full hover:text-red-500"><Trash2 size={14} /></button>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => openTeamModal(team)} className="p-1.5 bg-surface-50 rounded-full hover:text-gold-600"><Edit2 size={14} /></button>
-                        <button onClick={() => { setSelectedTeamId(team.id); setIsMembersModalOpen(true); }} className="p-1.5 bg-surface-50 rounded-full hover:text-blue-600"><Users size={14} /></button>
-                        <button onClick={() => { if (confirm('Excluir equipe?')) deleteTeam(team.id); }} className="p-1.5 bg-surface-50 rounded-full hover:text-red-500"><Trash2 size={14} /></button>
-                      </div>
-                    </div>
-                    <p className="text-xs text-text-secondary">{(team.members || []).length} membros</p>
-                  </PremiumCard>
-                ))}
+                      <p className="text-xs text-text-secondary">{(team.members || []).length} membros</p>
+                    </PremiumCard>
+                  );
+                })}
           </div>
         );
 
@@ -440,8 +453,22 @@ export default function AdminPanel() {
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">Diretoria</label>
-            <input value={teamForm.directorate || ''} onChange={e => setTeamForm(p => ({ ...p, directorate: e.target.value }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary" placeholder="Ex: Comercial" />
+            <select value={teamForm.directorate_id || ''} onChange={e => setTeamForm(p => ({ ...p, directorate_id: e.target.value || null }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary">
+              <option value="">Sem Diretoria</option>
+              {directorates.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Gestor da Equipe</label>
+            <select value={teamForm.manager_id || ''} onChange={e => setTeamForm(p => ({ ...p, manager_id: e.target.value || null }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary">
+              <option value="">Sem Gestor</option>
+              {allProfiles
+                .filter(p => ['ADMIN', 'DIRETOR', 'GERENTE', 'COORDENADOR'].includes(p.role))
+                .map(p => <option key={p.id} value={p.id}>{p.name} ({p.role})</option>)
+              }
+            </select>
           </div>
           <RoundedButton fullWidth onClick={handleSaveTeam} disabled={isSavingTeam}>
             {isSavingTeam ? <><Loader2 size={16} className="animate-spin" /> Salvando...</> : 'Salvar'}

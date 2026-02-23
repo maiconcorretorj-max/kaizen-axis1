@@ -78,8 +78,8 @@ export interface Development {
 export interface Team {
   id: string;
   name: string;
-  manager_id?: string;
-  directorate?: string;
+  manager_id?: string | null;
+  directorate_id?: string | null;
   total_sales?: string;
   members?: string[];
 }
@@ -484,7 +484,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addTeam = useCallback(async (data: Omit<Team, 'id'>) => {
     try {
-      const { error } = await supabase.from('teams').insert([data]);
+      const { error } = await supabase.from('teams').insert([{
+        name: data.name,
+        manager_id: data.manager_id,
+        directorate_id: data.directorate_id,
+        members: data.members
+      }]);
       if (error) throw error;
       await refreshTeams();
     } catch (e) { console.error('Erro ao adicionar equipe:', e); }
@@ -492,7 +497,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const updateTeam = useCallback(async (id: string, data: Partial<Team>) => {
     try {
-      const { error } = await supabase.from('teams').update(data).eq('id', id);
+      const updateData: any = { ...data };
+      if ('directorate_id' in data) updateData.directorate_id = data.directorate_id;
+      if ('manager_id' in data) updateData.manager_id = data.manager_id;
+
+      const { error } = await supabase.from('teams').update(updateData).eq('id', id);
       if (error) throw error;
       await refreshTeams();
     } catch (e) { console.error('Erro ao atualizar equipe:', e); }
