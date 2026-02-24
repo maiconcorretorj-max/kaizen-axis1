@@ -14,7 +14,7 @@ import { Client } from '@/data/clients';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type MainTab = 'clientes' | 'novo_lead';
+type MainTab = 'clientes' | 'documentacao';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -319,8 +319,8 @@ export default function Clients() {
     if (location.state?.initialStage) {
       setActiveStage(location.state.initialStage);
     }
-    if (location.state?.tab === 'novo_lead') {
-      setMainTab('novo_lead');
+    if (location.state?.tab === 'documentacao') {
+      setMainTab('documentacao');
     }
   }, [location.state]);
 
@@ -366,8 +366,8 @@ export default function Clients() {
           <button
             onClick={() => setMainTab('clientes')}
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all ${mainTab === 'clientes'
-                ? 'bg-card-bg shadow text-text-primary'
-                : 'text-text-secondary hover:text-text-primary'
+              ? 'bg-card-bg shadow text-text-primary'
+              : 'text-text-secondary hover:text-text-primary'
               }`}
           >
             Clientes
@@ -376,15 +376,15 @@ export default function Clients() {
             </span>
           </button>
           <button
-            onClick={() => setMainTab('novo_lead')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all ${mainTab === 'novo_lead'
-                ? 'bg-card-bg shadow text-text-primary'
-                : 'text-text-secondary hover:text-text-primary'
+            onClick={() => setMainTab('documentacao')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all ${mainTab === 'documentacao'
+              ? 'bg-card-bg shadow text-text-primary'
+              : 'text-text-secondary hover:text-text-primary'
               }`}
           >
             <span className="flex items-center gap-1.5">
-              <Zap size={13} className={mainTab === 'novo_lead' ? 'text-green-500' : ''} />
-              Novo Lead
+              <Zap size={13} className={mainTab === 'documentacao' ? 'text-green-500' : ''} />
+              Documentação
             </span>
             {leads.length > 0 && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-500 text-white animate-pulse">
@@ -402,7 +402,7 @@ export default function Clients() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
             <input
               type="text"
-              placeholder={mainTab === 'clientes' ? 'Buscar cliente...' : 'Buscar lead...'}
+              placeholder={mainTab === 'clientes' ? 'Buscar cliente...' : 'Buscar documento...'}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 bg-surface-50 rounded-xl text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-gold-200 transition-all placeholder:text-text-secondary"
@@ -422,8 +422,8 @@ export default function Clients() {
             <button
               onClick={() => setActiveStage('Todos')}
               className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-all ${activeStage === 'Todos'
-                  ? 'bg-gray-900 dark:bg-white text-white dark:text-black shadow-md'
-                  : 'bg-card-bg text-text-secondary border border-surface-200'
+                ? 'bg-gray-900 dark:bg-white text-white dark:text-black shadow-md'
+                : 'bg-card-bg text-text-secondary border border-surface-200'
                 }`}
             >
               Todos ({clients.length})
@@ -433,8 +433,8 @@ export default function Clients() {
                 key={stage}
                 onClick={() => setActiveStage(stage)}
                 className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-all ${activeStage === stage
-                    ? 'bg-gold-500 text-white shadow-md'
-                    : 'bg-card-bg text-text-secondary border border-surface-200'
+                  ? 'bg-gold-500 text-white shadow-md'
+                  : 'bg-card-bg text-text-secondary border border-surface-200'
                   }`}
               >
                 {stage}
@@ -491,8 +491,8 @@ export default function Clients() {
         </>
       )}
 
-      {/* ── NOVO LEAD TAB ── */}
-      {mainTab === 'novo_lead' && (
+      {/* ── DOCUMENTAÇÃO TAB ── */}
+      {mainTab === 'documentacao' && (
         <div className="flex-1 px-5 py-4 overflow-y-auto pb-24">
           {/* Header info bar */}
           <div className="flex items-center justify-between mb-4">
