@@ -147,7 +147,7 @@ export default function ClientDetails() {
               variant="secondary"
               size="sm"
               className="w-full"
-              onClick={() => client.phone && (window.location.href = `tel:${client.phone.replace(/\D/g, '')}`)}
+              href={`tel:${client.phone?.replace(/\D/g, '')}`}
             >
               <Phone size={16} /> Ligar
             </RoundedButton>

@@ -82,7 +82,7 @@ export default function PotentialClients() {
               <RoundedButton
                 variant="outline"
                 className="flex items-center justify-center gap-2 text-xs h-10"
-                onClick={() => { window.location.href = `tel:${client.phone.replace(/\D/g, '')}` }}
+                href={`tel:${client.phone.replace(/\D/g, '')}`}
               >
                 <Phone size={14} /> Ligar
               </RoundedButton>

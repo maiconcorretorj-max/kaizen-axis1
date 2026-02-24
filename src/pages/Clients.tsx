@@ -201,7 +201,7 @@ export default function Clients() {
                 variant="secondary"
                 size="sm"
                 className="flex-1 h-9 text-xs"
-                onClick={(e) => handleCall(client.phone, e)}
+                href={`tel:${client.phone?.replace(/\D/g, '')}`}
               >
                 <Phone size={14} /> Ligar
               </RoundedButton>

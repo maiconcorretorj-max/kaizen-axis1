@@ -29,6 +29,8 @@ interface RoundedButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   size?: 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
   children?: React.ReactNode;
+  href?: string;
+  target?: string;
 }
 
 export const RoundedButton = ({
@@ -37,6 +39,7 @@ export const RoundedButton = ({
   variant = 'primary',
   size = 'md',
   fullWidth,
+  href,
   ...props
 }: RoundedButtonProps) => {
   const variants = {
@@ -52,16 +55,31 @@ export const RoundedButton = ({
     lg: "px-8 py-4 text-lg",
   };
 
+  const classes = cn(
+    "rounded-full font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer",
+    variants[variant],
+    sizes[size],
+    fullWidth && "w-full",
+    className
+  );
+
+  if (href) {
+    return (
+      <motion.a
+        href={href}
+        whileTap={{ scale: 0.98 } as any}
+        className={classes}
+        {...(props as any)}
+      >
+        {children}
+      </motion.a>
+    );
+  }
+
   return (
     <motion.button
       whileTap={{ scale: 0.98 } as any}
-      className={cn(
-        "rounded-full font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer",
-        variants[variant],
-        sizes[size],
-        fullWidth && "w-full",
-        className
-      )}
+      className={classes}
       {...(props as any)}
     >
       {children}

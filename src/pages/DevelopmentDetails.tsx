@@ -251,7 +251,10 @@ export default function DevelopmentDetails() {
 
             {development.contact.phone && (
               <div className="grid grid-cols-2 gap-3">
-                <RoundedButton className="w-full flex items-center justify-center gap-2" onClick={() => { window.location.href = `tel:${(development.contact?.phone || '').replace(/\D/g, '')}` }}>
+                <RoundedButton
+                  className="w-full flex items-center justify-center gap-2"
+                  href={`tel:${(development.contact?.phone || '').replace(/\D/g, '')}`}
+                >
                   <Phone size={18} /> Ligar
                 </RoundedButton>
                 <RoundedButton variant="outline" className="w-full flex items-center justify-center gap-2 border-green-500 text-green-600 hover:bg-green-50" onClick={handleWhatsApp}>
