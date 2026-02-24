@@ -10,7 +10,7 @@ import { useApp } from '@/context/AppContext';
 export default function ClientDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getClient, updateClient, deleteClient, userName, getDownloadUrl, uploadFile, addDocumentToClient } = useApp();
+  const { getClient, updateClient, deleteClient, userName, getDownloadUrl, uploadFile, addDocumentToClient, clients } = useApp();
 
   const [client, setClient] = useState<Client | null>(null);
   const [isEditingStage, setIsEditingStage] = useState(false);
@@ -28,7 +28,7 @@ export default function ClientDetails() {
       setClient(found);
       setEditForm(found);
     }
-  }, [id, getClient]);
+  }, [id, getClient, clients]);
 
   const handleStageChange = async (newStage: ClientStage) => {
     if (!client || !id) return;
