@@ -136,7 +136,7 @@ interface AppContextValue {
 
   // Storage
   uploadFile: (file: File, path: string, bucket?: string) => Promise<string | null>;
-  addDocumentToClient: (clientId: string, name: string, path: string) => Promise<boolean>;
+  addDocumentToClient: (clientId: string, name: string, path: string) => Promise<{ success: boolean; error?: string }>;
   getDownloadUrl: (path: string, bucket?: string) => Promise<string | null>;
 
   // Appointments
@@ -353,15 +353,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { console.error('Erro no upload:', e); return null; }
   };
 
-  const addDocumentToClient = async (clientId: string, name: string, path: string): Promise<boolean> => {
+  const addDocumentToClient = async (clientId: string, name: string, path: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const { error } = await supabase.from('client_documents').insert([{ client_id: clientId, name, file_path: path }]);
-      if (error) throw error;
+      if (error) return { success: false, error: error.message };
       await refreshClients();
-      return true;
-    } catch (e) {
+      return { success: true };
+    } catch (e: any) {
       console.error('Erro ao adicionar documento:', e);
-      return false;
+      return { success: false, error: e.message || 'Erro desconhecido' };
     }
   };
 

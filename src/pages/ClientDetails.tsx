@@ -85,11 +85,11 @@ export default function ClientDetails() {
       const uploadedPath = await uploadFile(file, filePath);
 
       if (uploadedPath) {
-        const dbSuccess = await addDocumentToClient(id, file.name, uploadedPath);
-        if (dbSuccess) {
+        const dbResult = await addDocumentToClient(id, file.name, uploadedPath);
+        if (dbResult.success) {
           alert('Documento anexado com sucesso!');
         } else {
-          alert('Erro ao vincular o documento no banco de dados. O arquivo foi enviado, mas pode não aparecer.');
+          alert(`Erro do Banco de Dados: ${dbResult.error}`);
         }
       } else {
         alert('Erro ao fazer upload do documento.');

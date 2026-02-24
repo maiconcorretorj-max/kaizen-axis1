@@ -92,8 +92,11 @@ export default function NewClient() {
           const filePath = `${newClient.id}/${Date.now()}-${file.name}`;
           const uploadedPath = await uploadFile(file, filePath);
           if (uploadedPath) {
-            const dbSuccess = await addDocumentToClient(newClient.id, file.name, uploadedPath);
-            if (!dbSuccess) hasError = true;
+            const dbResult = await addDocumentToClient(newClient.id, file.name, uploadedPath);
+            if (!dbResult.success) {
+              hasError = true;
+              console.error(dbResult.error);
+            }
           } else {
             hasError = true;
           }
