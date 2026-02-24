@@ -1,5 +1,5 @@
-export type ClientStage = 
-  | "Novo Lead"
+export type ClientStage =
+  | "Documentação"
   | "Em Análise"
   | "Aprovado"
   | "Condicionado"
@@ -9,7 +9,7 @@ export type ClientStage =
   | "Concluído";
 
 export const CLIENT_STAGES: ClientStage[] = [
-  "Novo Lead",
+  "Documentação",
   "Em Análise",
   "Aprovado",
   "Condicionado",

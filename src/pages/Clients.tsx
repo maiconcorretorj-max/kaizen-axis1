@@ -384,7 +384,7 @@ export default function Clients() {
           >
             <span className="flex items-center gap-1.5">
               <Zap size={13} className={mainTab === 'documentacao' ? 'text-green-500' : ''} />
-              Documentação
+              Novo Lead
             </span>
             {leads.length > 0 && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-500 text-white animate-pulse">
@@ -402,7 +402,7 @@ export default function Clients() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
             <input
               type="text"
-              placeholder={mainTab === 'clientes' ? 'Buscar cliente...' : 'Buscar documento...'}
+              placeholder={mainTab === 'clientes' ? 'Buscar cliente...' : 'Buscar lead...'}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 bg-surface-50 rounded-xl text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-gold-200 transition-all placeholder:text-text-secondary"

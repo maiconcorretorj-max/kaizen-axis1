@@ -99,7 +99,7 @@ export const SectionHeader = ({ title, subtitle, action }: { title: string; subt
 export const StatusBadge = ({ status, className }: { status: string; className?: string }) => {
   const styles: Record<string, string> = {
     // Client Stages
-    'Novo Lead': 'bg-gold-50 dark:bg-gold-900/20 text-gold-700 dark:text-gold-400 border-gold-100 dark:border-gold-800',
+    'Documentação': 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-100 dark:border-amber-800',
     'Em Análise': 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800',
     'Aprovado': 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-100 dark:border-green-800',
     'Condicionado': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-100 dark:border-orange-800',
