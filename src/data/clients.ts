@@ -5,6 +5,7 @@ export type ClientStage =
   | "Condicionado"
   | "Reprovado"
   | "Em Tratativa"
+  | "Contrato"
   | "Concluído";
 
 export const CLIENT_STAGES: ClientStage[] = [
@@ -14,6 +15,7 @@ export const CLIENT_STAGES: ClientStage[] = [
   "Condicionado",
   "Reprovado",
   "Em Tratativa",
+  "Contrato",
   "Concluído"
 ];
 

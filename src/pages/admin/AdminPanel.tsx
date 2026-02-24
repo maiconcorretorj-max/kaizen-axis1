@@ -199,7 +199,7 @@ export default function AdminPanel() {
   };
 
   // ── Reports data ───────────────────────────────────────────────────────────
-  const stageData = ['Em Análise', 'Aprovados', 'Condicionados', 'Reprovados', 'Em Tratativa', 'Vendas Concluidas'].map(stage => ({
+  const stageData = ['Em Análise', 'Aprovados', 'Condicionados', 'Reprovados', 'Em Tratativa', 'Contrato', 'Vendas Concluidas'].map(stage => ({
     name: stage.length > 10 ? stage.substring(0, 10) + '…' : stage,
     total: clients.filter(c => c.stage === stage).length
   }));
