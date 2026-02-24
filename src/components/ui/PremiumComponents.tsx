@@ -65,14 +65,13 @@ export const RoundedButton = ({
 
   if (href) {
     return (
-      <motion.a
+      <a
         href={href}
-        whileTap={{ scale: 0.98 } as any}
         className={classes}
         {...(props as any)}
       >
         {children}
-      </motion.a>
+      </a>
     );
   }
 
