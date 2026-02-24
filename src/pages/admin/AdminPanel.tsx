@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { SectionHeader, PremiumCard, RoundedButton } from '@/components/ui/PremiumComponents';
-import { Users, Shield, Target, Megaphone, BarChart3, Plus, Search, Trophy, Download, FileSpreadsheet, FileText, Trash2, Edit2, ChevronDown, Calendar, Loader2, Building2 } from 'lucide-react';
+import { Users, Shield, Target, Megaphone, BarChart3, Plus, Search, Trophy, Download, FileSpreadsheet, FileText, Trash2, Edit2, ChevronDown, Calendar, Loader2, Building2, TrendingUp } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useApp, Team, Goal, Announcement, Directorate } from '@/context/AppContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
-import { Navigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
+import { supabase } from '@/lib/supabase';
 
 type Tab = 'users' | 'teams' | 'goals' | 'announcements' | 'reports' | 'directorates';
 
@@ -57,9 +58,79 @@ export default function AdminPanel() {
   const [isSavingDir, setIsSavingDir] = useState(false);
 
   // Reports
-  const [reportView, setReportView] = useState<'Teams' | 'Brokers'>('Teams');
-  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
-  const [reportDateRange, setReportDateRange] = useState({ start: '', end: '' });
+  const [reportDateRange, setReportDateRange] = useState({
+    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
+    end: new Date().toISOString().slice(0, 10)
+  });
+  const [reportData, setReportData] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [isGeneratingCSV, setIsGeneratingCSV] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (activeTab === 'reports' && reportDateRange.start && reportDateRange.end) {
+      fetchReportData();
+    }
+  }, [activeTab, reportDateRange]);
+
+  const fetchReportData = async () => {
+    setReportLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('get_report_metrics', {
+        data_inicial: reportDateRange.start,
+        data_final: reportDateRange.end
+      });
+      if (error) throw error;
+      setReportData(data);
+    } catch (e) {
+      console.error('Erro ao buscar relatórios:', e);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (!reportData) return;
+    setIsGeneratingCSV(true);
+    try {
+      const rows = [
+        ['Métrica', 'Valor'],
+        ['Total de Leads', reportData.resumo_geral.L],
+        ['Total de Clientes', reportData.resumo_geral.C],
+        ['Vendas Concluídas', reportData.resumo_geral.V],
+        ['Receita Total', reportData.resumo_geral.R],
+        ['Agendamentos', reportData.resumo_geral.A],
+        ['Taxa de Conversão', `${reportData.resumo_geral.Taxa_Conversao}%`],
+        ['Ticket Médio', reportData.resumo_geral.Ticket_Medio],
+        ['Tempo Médio de Conversão (dias)', reportData.resumo_geral.Tempo_Medio_Conversao],
+        [],
+        ['Pipeline - Etapa', 'Quantidade', 'Percentual']
+      ];
+
+      reportData.pipeline.forEach((p: any) => {
+        rows.push([p.etapa, p.quantidade.toString(), `${p.percentual}%`]);
+      });
+
+      rows.push([]);
+      rows.push(['Corretores - Nome', 'Leads', 'Vendas', 'Receita', 'Taxa Conversão', 'Ticket Médio']);
+      reportData.performance_corretores.forEach((c: any) => {
+        rows.push([c.nome, c.Li.toString(), c.Vi.toString(), c.Ri.toString(), `${c.Taxa_Conversao_i}%`, c.Ticket_Medio_i.toString()]);
+      });
+
+      const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.join(";")).join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `relatorio_${reportDateRange.start}_${reportDateRange.end}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      console.error('Erro ao gerar CSV', e);
+    } finally {
+      setIsGeneratingCSV(false);
+    }
+  };
 
   // Approval Modal
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
@@ -379,56 +450,211 @@ export default function AdminPanel() {
       case 'reports':
         return (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div className="flex gap-2 bg-surface-100 p-1 rounded-lg">
-                {(['Teams', 'Brokers'] as const).map(v => (
-                  <button key={v} onClick={() => setReportView(v)}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${reportView === v ? 'bg-white shadow text-text-primary' : 'text-text-secondary'}`}>
-                    {v === 'Teams' ? 'Etapas' : 'Corretores'}
-                  </button>
-                ))}
+            <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-surface-200 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Calendar size={18} className="text-gold-600" />
+                <span className="text-sm font-semibold text-text-primary whitespace-nowrap">Período Selecionado:</span>
+                <input
+                  type="date"
+                  value={reportDateRange.start}
+                  onChange={(e) => setReportDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="px-2 py-1.5 border border-surface-200 rounded-md text-sm bg-surface-50 focus:border-gold-400 focus:ring-1 focus:ring-gold-400 outline-none transition-all"
+                  max={reportDateRange.end}
+                />
+                <span className="text-sm text-text-secondary mx-1">até</span>
+                <input
+                  type="date"
+                  value={reportDateRange.end}
+                  onChange={(e) => setReportDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="px-2 py-1.5 border border-surface-200 rounded-md text-sm bg-surface-50 focus:border-gold-400 focus:ring-1 focus:ring-gold-400 outline-none transition-all"
+                  min={reportDateRange.start}
+                />
+                <div className="flex gap-1 ml-4 border-l border-surface-200 pl-4">
+                  <button onClick={() => setReportDateRange({ start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10), end: new Date().toISOString().slice(0, 10) })} className="px-3 py-1.5 bg-surface-100 text-xs font-semibold text-text-secondary rounded-md hover:bg-gold-50 hover:text-gold-700 transition-colors">Este Mês</button>
+                  <button onClick={() => { const today = new Date(); const m30 = new Date(); m30.setDate(today.getDate() - 30); setReportDateRange({ start: m30.toISOString().slice(0, 10), end: today.toISOString().slice(0, 10) }) }} className="px-3 py-1.5 bg-surface-100 text-xs font-semibold text-text-secondary rounded-md hover:bg-gold-50 hover:text-gold-700 transition-colors">Últimos 30 Dias</button>
+                </div>
               </div>
-              <div className="relative">
-                <button onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
-                  className="flex items-center gap-2 px-3 py-2 bg-white border border-surface-200 rounded-lg hover:bg-surface-50 text-text-secondary text-xs font-medium">
-                  <Download size={14} /> Exportar <ChevronDown size={14} />
-                </button>
-                {isDownloadMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-surface-100 py-1 z-50">
-                    <button onClick={() => { alert('Relatório PDF gerado!'); setIsDownloadMenuOpen(false); }} className="w-full px-4 py-2 text-left text-xs hover:bg-surface-50 flex items-center gap-2 text-red-600"><FileText size={14} /> PDF</button>
-                    <button onClick={() => { alert('Relatório Excel gerado!'); setIsDownloadMenuOpen(false); }} className="w-full px-4 py-2 text-left text-xs hover:bg-surface-50 flex items-center gap-2 text-green-600"><FileSpreadsheet size={14} /> Excel</button>
+              <RoundedButton size="sm" onClick={handleExportCSV} disabled={isGeneratingCSV || !reportData}>
+                {isGeneratingCSV ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileSpreadsheet size={16} className="mr-2" />} Exportar Base (CSV)
+              </RoundedButton>
+            </div>
+
+            {reportLoading || !reportData ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-surface-200 shadow-sm">
+                <Loader2 size={40} className="animate-spin text-gold-500 mb-4" />
+                <p className="text-sm font-semibold text-text-primary">Processando indicadores no banco de dados...</p>
+                <p className="text-xs text-text-secondary mt-1">Isso pode levar alguns segundos dependendo do volume do período.</p>
+              </div>
+            ) : (
+              <>
+                {/* TOP NAVIGATION METRICS */}
+                <div className="grid grid-cols-4 gap-4">
+                  {[
+                    { label: 'Total de Leads', value: reportData.resumo_geral.L, cmp: reportData.comparativo_mes_atual.crescimento_leads, icon: <Users size={18} />, color: 'text-surface-600', route: undefined },
+                    { label: 'Total de Clientes', value: reportData.resumo_geral.C, cmp: null, icon: <Users size={18} />, color: 'text-gold-600', route: '/clients' },
+                    { label: 'Aprovados', value: reportData.pipeline.find((p: any) => p.etapa === 'Aprovados')?.quantidade || 0, cmp: null, icon: <Shield size={18} />, color: 'text-green-600', route: '/clients' },
+                    { label: 'Agendamentos', value: reportData.resumo_geral.A, cmp: null, icon: <Calendar size={18} />, color: 'text-blue-600', route: '/schedule' },
+                  ].map((stat, i) => (
+                    <PremiumCard key={i} className={`p-4 relative ${stat.route ? 'cursor-pointer hover:border-gold-300 hover:shadow-md transition-all' : ''}`} onClick={() => stat.route && navigate(stat.route)}>
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="p-2 bg-surface-100 rounded-lg">{stat.icon}</span>
+                        {stat.cmp !== null && (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stat.cmp > 0 ? 'bg-green-100 text-green-700' : stat.cmp < 0 ? 'bg-red-100 text-red-700' : 'bg-surface-100 text-text-secondary'}`}>
+                            {stat.cmp > 0 ? '+' : ''}{stat.cmp}%
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-3xl font-black ${stat.color} mb-1`}>{stat.value}</p>
+                      <p className="text-xs font-semibold text-text-secondary">{stat.label}</p>
+                      {stat.route && <span className="absolute bottom-4 right-4 text-[10px] text-gold-500 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">Ver lista &rarr;</span>}
+                    </PremiumCard>
+                  ))}
+                </div>
+
+                {/* STRATEGIC DASHBOARD */}
+                <div className="grid grid-cols-4 gap-4">
+                  <PremiumCard className="p-4 bg-gradient-to-br from-gold-50/50 to-white dark:from-gold-900/10 dark:to-surface-800 border-gold-100">
+                    <p className="text-xs font-bold tracking-wider text-gold-600 mb-1 flex items-center gap-1.5"><Trophy size={14} /> VENDAS CONCLUÍDAS</p>
+                    <p className="text-2xl font-black text-text-primary">{reportData.resumo_geral.V}</p>
+                    <p className="text-[10px] font-semibold text-text-secondary mt-1 flex items-center gap-1">
+                      <span className={reportData.comparativo_mes_atual.crescimento_vendas > 0 ? 'text-green-600' : reportData.comparativo_mes_atual.crescimento_vendas < 0 ? 'text-red-600' : ''}>
+                        {reportData.comparativo_mes_atual.crescimento_vendas > 0 ? '+' : ''}{reportData.comparativo_mes_atual.crescimento_vendas}%
+                      </span>
+                      vs mês atual
+                    </p>
+                  </PremiumCard>
+                  <PremiumCard className="p-4 bg-gradient-to-br from-green-50/50 to-white dark:from-green-900/10 dark:to-surface-800 border-green-100">
+                    <p className="text-xs font-bold tracking-wider text-green-600 mb-1 flex items-center gap-1.5"><TrendingUp size={14} /> RECEITA (VGV)</p>
+                    <p className="text-2xl font-black text-text-primary">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(reportData.resumo_geral.R)}
+                    </p>
+                    <p className="text-[10px] font-semibold text-text-secondary mt-1 flex items-center gap-1">
+                      <span className={reportData.comparativo_mes_atual.crescimento_receita > 0 ? 'text-green-600' : reportData.comparativo_mes_atual.crescimento_receita < 0 ? 'text-red-600' : ''}>
+                        {reportData.comparativo_mes_atual.crescimento_receita > 0 ? '+' : ''}{reportData.comparativo_mes_atual.crescimento_receita}%
+                      </span>
+                      vs mês atual
+                    </p>
+                  </PremiumCard>
+                  <PremiumCard className="p-4 bg-gradient-to-br from-blue-50/50 to-white dark:from-blue-900/10 dark:to-surface-800 border-blue-100">
+                    <p className="text-xs font-bold tracking-wider text-blue-600 mb-1 flex items-center gap-1.5"><Target size={14} /> CONVERSÃO GLOBAL</p>
+                    <div className="flex items-end gap-2">
+                      <p className="text-2xl font-black text-text-primary">{reportData.resumo_geral.Taxa_Conversao}%</p>
+                      <span className="text-xs text-text-secondary mb-1">de conversão</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-text-secondary mt-1 bg-white inline-block px-2 py-0.5 rounded border border-surface-100">
+                      Ticket Médio: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(reportData.resumo_geral.Ticket_Medio)}
+                    </p>
+                  </PremiumCard>
+                  <PremiumCard className="p-4 bg-gradient-to-br from-purple-50/50 to-white dark:from-purple-900/10 dark:to-surface-800 border-purple-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs font-bold tracking-wider text-purple-600">JORNADA (TMC)</p>
+                      <div className="group relative">
+                        <div className="w-4 h-4 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-[10px] font-bold cursor-help">?</div>
+                        <div className="absolute right-0 bottom-6 w-48 p-2 bg-surface-800 text-white text-[10px] rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">Tempo Médio de Conversão, da criação do lead até a venda.</div>
+                      </div>
+                    </div>
+                    <p className="text-2xl font-black text-text-primary">{reportData.resumo_geral.Tempo_Medio_Conversao} <span className="text-[13px] font-bold text-text-secondary">dias</span></p>
+                    <p className="text-[10px] font-semibold text-text-secondary mt-1 ml-0.5">Média calculada para o período</p>
+                  </PremiumCard>
+                </div>
+
+                {/* CHARTS LAYER */}
+                <div className="grid grid-cols-2 gap-6">
+                  <PremiumCard className="p-5">
+                    <h4 className="font-bold text-text-primary mb-6 flex items-center gap-2"><BarChart3 size={18} className="text-gold-500" /> Distribuição de Pipeline (Clientes Ativos)</h4>
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={reportData.pipeline}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                          <XAxis dataKey="etapa" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} />
+                          <YAxis hide />
+                          <Tooltip
+                            cursor={{ fill: 'transparent' }}
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
+                            formatter={(value: any, name: any, props: any) => [`${value} Clientes (${props.payload.percentual}%)`, 'Quantidade']}
+                          />
+                          <Bar dataKey="quantidade" fill="#D4AF37" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </PremiumCard>
+
+                  <PremiumCard className="p-5">
+                    <h4 className="font-bold text-text-primary mb-6 flex items-center gap-2"><TrendingUp size={18} className="text-blue-500" /> Tendência no Período</h4>
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={reportData.tendencia_temporal}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                          <XAxis dataKey="periodo" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} tickFormatter={(v) => v.substring(5, 10).replace('-', '/')} />
+                          <YAxis hide yAxisId="left" />
+                          <YAxis hide yAxisId="right" orientation="right" />
+                          <Tooltip
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
+                            labelFormatter={(label) => `Data: ${label.split('-').reverse().join('/')}`}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                          <Line yAxisId="left" type="monotone" dataKey="Lt" name="Leads Adquiridos" stroke="#9CA3AF" strokeWidth={2} dot={false} />
+                          <Line yAxisId="left" type="monotone" dataKey="Vt" name="Vendas Concluídas" stroke="#10B981" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 5 }} />
+                          <Line yAxisId="right" type="monotone" dataKey="Rt" name="Receita" stroke="#3B82F6" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </PremiumCard>
+                </div>
+
+                {/* RANKING TABLE */}
+                <PremiumCard className="p-0 overflow-hidden border border-surface-200 shadow-sm">
+                  <div className="p-4 border-b border-surface-100 flex items-center justify-between bg-surface-50">
+                    <h4 className="font-bold text-text-primary flex items-center gap-2"><Trophy size={18} className="text-gold-500" /> Performance Individual de Corretores</h4>
+                    <span className="text-xs font-semibold text-text-secondary bg-white px-3 py-1 border border-surface-200 rounded-full shadow-sm">{reportData.performance_corretores.length} corretores no período</span>
                   </div>
-                )}
-              </div>
-            </div>
-
-            <PremiumCard className="p-4">
-              <h4 className="font-bold text-text-primary mb-4">Clientes por Etapa do Pipeline</h4>
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stageData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9 }} />
-                    <YAxis hide />
-                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-                    <Bar dataKey="total" name="Clientes" fill="#D4AF37" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </PremiumCard>
-
-            <div className="grid grid-cols-3 gap-4">
-              {[
-                { label: 'Total de Clientes', value: clients.length, color: 'text-gold-600' },
-                { label: 'Aprovados', value: clients.filter(c => c.stage === 'Aprovados').length, color: 'text-green-600' },
-                { label: 'Agendamentos', value: appointments.length, color: 'text-blue-600' },
-              ].map(stat => (
-                <PremiumCard key={stat.label} className="p-4 text-center">
-                  <p className={`text-3xl font-black ${stat.color}`}>{stat.value}</p>
-                  <p className="text-xs text-text-secondary mt-1">{stat.label}</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-surface-50 text-text-secondary text-[10px] uppercase tracking-wider">
+                          <th className="p-4 font-bold">Corretor</th>
+                          <th className="p-4 font-bold text-center">Volume Leads</th>
+                          <th className="p-4 font-bold text-center">Vendas Concluídas</th>
+                          <th className="p-4 font-bold text-center">Taxa de Conversão</th>
+                          <th className="p-4 font-bold text-right">VGV / Receita</th>
+                          <th className="p-4 font-bold text-right">Ticket Médio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.performance_corretores.sort((a: any, b: any) => b.Vi - a.Vi || b.Ri - a.Ri).map((c: any, i: number) => (
+                          <tr key={c.corretor_id} className="border-b border-surface-100 last:border-0 hover:bg-surface-50 transition-colors">
+                            <td className="p-4 text-sm font-semibold text-text-primary flex items-center gap-3">
+                              {i < 3 ? (
+                                <span className={`text-[10px] w-6 h-6 flex items-center justify-center rounded-full font-bold shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-300 to-yellow-500 text-white' : i === 1 ? 'bg-gradient-to-br from-gray-200 to-gray-400 text-white' : 'bg-gradient-to-br from-orange-300 to-orange-500 text-white'}`}>{i + 1}</span>
+                              ) : (
+                                <span className="text-[10px] w-6 h-6 flex items-center justify-center rounded-full font-bold bg-surface-100 text-text-secondary">{i + 1}</span>
+                              )}
+                              {c.nome}
+                            </td>
+                            <td className="p-4 text-sm text-center text-text-secondary">{c.Li}</td>
+                            <td className="p-4 text-sm text-center font-black text-green-600">{c.Vi}</td>
+                            <td className="p-4 text-sm text-center">
+                              <span className={`px-2.5 py-1 rounded-md border text-[11px] font-bold shadow-xs ${c.Taxa_Conversao_i >= 5 ? 'bg-green-50 text-green-700 border-green-200' : c.Taxa_Conversao_i > 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-surface-50 text-text-secondary border-surface-200'}`}>
+                                {c.Taxa_Conversao_i}%
+                              </span>
+                            </td>
+                            <td className="p-4 text-sm text-right font-bold text-text-primary">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(c.Ri)}
+                            </td>
+                            <td className="p-4 text-sm text-right font-medium text-text-secondary">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(c.Ticket_Medio_i)}
+                            </td>
+                          </tr>
+                        ))}
+                        {reportData.performance_corretores.length === 0 && (
+                          <tr><td colSpan={6} className="p-8 text-center text-text-secondary text-sm">Nenhum dado de corretor encontrado nesse período.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </PremiumCard>
-              ))}
-            </div>
+              </>
+            )}
           </div>
         );
 
