@@ -95,6 +95,7 @@ export default function NewClient() {
           }
         }
       }
+      alert('Cliente cadastrado com sucesso!');
       navigate('/clients');
     } else {
       alert('Erro ao salvar cliente. Tente novamente.');

@@ -38,7 +38,7 @@ export default function Clients() {
 
   const handleCall = (phone: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (phone) window.open(`tel:${phone.replace(/\D/g, '')}`);
+    if (phone) window.location.href = `tel:${phone.replace(/\D/g, '')}`;
   };
 
 

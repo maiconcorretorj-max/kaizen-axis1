@@ -41,8 +41,8 @@ export default function PotentialClients() {
   return (
     <div className="min-h-screen bg-surface-50 pb-24 p-6">
       <div className="flex items-center gap-4 mb-6">
-        <button 
-          onClick={() => navigate(-1)} 
+        <button
+          onClick={() => navigate(-1)}
           className="p-2 rounded-full bg-white dark:bg-surface-100 border border-surface-200 text-text-secondary hover:text-text-primary transition-colors"
         >
           <ChevronLeft size={24} />
@@ -79,22 +79,22 @@ export default function PotentialClients() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <RoundedButton 
-                variant="outline" 
+              <RoundedButton
+                variant="outline"
                 className="flex items-center justify-center gap-2 text-xs h-10"
-                onClick={() => window.open(`tel:${client.phone.replace(/\D/g, '')}`)}
+                onClick={() => { window.location.href = `tel:${client.phone.replace(/\D/g, '')}` }}
               >
                 <Phone size={14} /> Ligar
               </RoundedButton>
-              <RoundedButton 
+              <RoundedButton
                 className="flex items-center justify-center gap-2 text-xs h-10"
                 onClick={() => window.open(`https://wa.me/55${client.phone.replace(/\D/g, '')}`, '_blank')}
               >
                 <MessageCircle size={14} /> WhatsApp
               </RoundedButton>
             </div>
-            
-            <button 
+
+            <button
               onClick={() => navigate(`/clients/${client.id}`)}
               className="w-full mt-3 flex items-center justify-center gap-1 text-xs text-text-secondary hover:text-gold-600 transition-colors py-2"
             >
