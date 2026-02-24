@@ -307,12 +307,11 @@ function ConvertLeadModal({ lead, onClose, onConfirm }: {
 export default function Clients() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { clients, leads, loading, convertLeadToClient, updateLead, userRole } = useApp();
+  const { clients, leads, loading, userRole } = useApp();
 
   const [mainTab, setMainTab] = useState<MainTab>('clientes');
   const [activeStage, setActiveStage] = useState<ClientStage | 'Todos'>('Todos');
   const [searchTerm, setSearchTerm] = useState('');
-  const [convertingLead, setConvertingLead] = useState<AutomationLead | null>(null);
   const [convertSuccess, setConvertSuccess] = useState(false);
 
   useEffect(() => {
@@ -337,15 +336,17 @@ export default function Clients() {
     (lead.origin || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleConvertConfirm = async (lead: AutomationLead, formData: any) => {
-    const result = await convertLeadToClient(lead.id, formData);
-    if (result.success) {
-      setConvertingLead(null);
-      setConvertSuccess(true);
-      setTimeout(() => setConvertSuccess(false), 3000);
-    } else {
-      alert('Erro ao criar a ficha. Por favor, tente novamente.');
-    }
+  const handleConvert = (lead: AutomationLead) => {
+    navigate('/clients/new', {
+      state: {
+        prefill: {
+          name: lead.name || '',
+          phone: lead.phone || '',
+          notes: lead.aiSummary ? `Resumo IA: ${lead.aiSummary}` : '',
+          origin: lead.origin || 'Novo Lead',
+        }
+      }
+    });
   };
 
   return (
@@ -548,7 +549,7 @@ export default function Clients() {
                   <LeadCard
                     key={lead.id}
                     lead={lead}
-                    onConvert={setConvertingLead}
+                    onConvert={handleConvert}
                   />
                 ))}
               </div>
@@ -557,16 +558,7 @@ export default function Clients() {
         </div>
       )}
 
-      {/* ── Convert Modal ── */}
-      <AnimatePresence>
-        {convertingLead && (
-          <ConvertLeadModal
-            lead={convertingLead}
-            onClose={() => setConvertingLead(null)}
-            onConfirm={handleConvertConfirm}
-          />
-        )}
-      </AnimatePresence>
+
     </div>
   );
 }

@@ -24,7 +24,7 @@ export default function NewClient() {
     regionOfInterest: '',
     development: '',
     intendedValue: '',
-    stage: 'Novo Lead' as ClientStage,
+    stage: 'Documentação' as ClientStage,
     observations: '',
   });
 
