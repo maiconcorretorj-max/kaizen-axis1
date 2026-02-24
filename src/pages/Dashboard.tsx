@@ -181,7 +181,15 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
             {/* Weekly Appointments */}
             <section>
-              <SectionHeader title="Agendamentos da Semana" subtitle="Todos os seus compromissos" />
+              <SectionHeader
+                title="Agendamentos da Semana"
+                subtitle="Todos os seus compromissos"
+                action={
+                  <button onClick={() => navigate('/schedule')} className="text-xs text-gold-600 dark:text-gold-400 font-medium hover:underline">
+                    Ver todos
+                  </button>
+                }
+              />
               <div className="space-y-3">
                 {appointments.length === 0 ? (
                   <PremiumCard className="text-center py-6">
