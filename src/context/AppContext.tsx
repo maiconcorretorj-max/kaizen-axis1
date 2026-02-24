@@ -136,7 +136,7 @@ interface AppContextValue {
 
   // Storage
   uploadFile: (file: File, path: string, bucket?: string) => Promise<string | null>;
-  addDocumentToClient: (clientId: string, name: string, path: string) => Promise<void>;
+  addDocumentToClient: (clientId: string, name: string, path: string) => Promise<boolean>;
   getDownloadUrl: (path: string, bucket?: string) => Promise<string | null>;
 
   // Appointments
@@ -353,12 +353,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { console.error('Erro no upload:', e); return null; }
   };
 
-  const addDocumentToClient = async (clientId: string, name: string, path: string) => {
+  const addDocumentToClient = async (clientId: string, name: string, path: string): Promise<boolean> => {
     try {
       const { error } = await supabase.from('client_documents').insert([{ client_id: clientId, name, file_path: path }]);
       if (error) throw error;
       await refreshClients();
-    } catch (e) { console.error('Erro ao adicionar documento:', e); }
+      return true;
+    } catch (e) {
+      console.error('Erro ao adicionar documento:', e);
+      return false;
+    }
   };
 
   const getDownloadUrl = async (path: string, bucket = 'documents'): Promise<string | null> => {

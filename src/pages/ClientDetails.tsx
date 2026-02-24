@@ -20,6 +20,8 @@ export default function ClientDetails() {
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   const [isUploading, setIsUploading] = useState(false);
 
+  console.log("Client Details Render:", { client, documents: client?.documents });
+
   // Load from context
   useEffect(() => {
     if (!id) return;
@@ -83,8 +85,12 @@ export default function ClientDetails() {
       const uploadedPath = await uploadFile(file, filePath);
 
       if (uploadedPath) {
-        await addDocumentToClient(id, file.name, uploadedPath);
-        alert('Documento anexado com sucesso!');
+        const dbSuccess = await addDocumentToClient(id, file.name, uploadedPath);
+        if (dbSuccess) {
+          alert('Documento anexado com sucesso!');
+        } else {
+          alert('Erro ao vincular o documento no banco de dados. O arquivo foi enviado, mas pode não aparecer.');
+        }
       } else {
         alert('Erro ao fazer upload do documento.');
       }
@@ -337,6 +343,12 @@ export default function ClientDetails() {
 
         {/* Documents */}
         <section>
+          {/* TEMP DEBUG BLOCK */}
+          <div className="bg-red-50 p-4 border border-red-200 rounded-lg mb-4 text-xs overflow-auto text-red-900">
+            <strong>DEBUG - Documentos do cliente (Array real):</strong>
+            <pre>{JSON.stringify(client?.documents, null, 2)}</pre>
+          </div>
+
           <SectionHeader
             title="Documentos Anexados"
             action={

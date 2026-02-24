@@ -87,15 +87,25 @@ export default function NewClient() {
     if (newClient) {
       // Upload documents if any
       if (documents.length > 0) {
+        let hasError = false;
         for (const file of documents) {
           const filePath = `${newClient.id}/${Date.now()}-${file.name}`;
           const uploadedPath = await uploadFile(file, filePath);
           if (uploadedPath) {
-            await addDocumentToClient(newClient.id, file.name, uploadedPath);
+            const dbSuccess = await addDocumentToClient(newClient.id, file.name, uploadedPath);
+            if (!dbSuccess) hasError = true;
+          } else {
+            hasError = true;
           }
         }
+        if (hasError) {
+          alert('Cliente salvo, mas houve erros ao vincular alguns documentos no banco de dados.');
+        } else {
+          alert('Cliente e documentos cadastrados com sucesso!');
+        }
+      } else {
+        alert('Cliente cadastrado com sucesso!');
       }
-      alert('Cliente cadastrado com sucesso!');
       navigate('/clients');
     } else {
       alert('Erro ao salvar cliente. Tente novamente.');
