@@ -1,22 +1,326 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { PremiumCard, StatusBadge, RoundedButton } from '@/components/ui/PremiumComponents';
-import { Search, Filter, Phone, Mail, MessageCircle, UserPlus, Clock, Plus, Loader2 } from 'lucide-react';
+import {
+  Search, Filter, Phone, Mail, MessageCircle, UserPlus,
+  Clock, Plus, Loader2, Zap, ChevronRight, X, Brain,
+  Sparkles, BadgeCheck, AlertTriangle, CheckCircle2
+} from 'lucide-react';
 import { CLIENT_STAGES, ClientStage } from '@/data/clients';
 import { AutomationLead } from '@/data/leads';
 import { useApp } from '@/context/AppContext';
+import { Client } from '@/data/clients';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type MainTab = 'clientes' | 'novo_lead';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function timeAgo(isoDate: string) {
+  const diff = (Date.now() - new Date(isoDate).getTime()) / 1000;
+  if (diff < 60) return 'agora mesmo';
+  if (diff < 3600) return `${Math.floor(diff / 60)}min atrás`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
+  return new Date(isoDate).toLocaleDateString('pt-BR');
+}
+
+function formatPhone(phone: string) {
+  const d = phone.replace(/\D/g, '');
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return phone;
+}
+
+// ─── Priority indicator ───────────────────────────────────────────────────────
+
+function PriorityBadge({ metadata }: { metadata?: AutomationLead['ai_metadata'] }) {
+  const priority = metadata?.priority;
+  if (!priority || priority === 'baixa') return null;
+  const isHigh = priority === 'alta';
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${isHigh ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+      }`}>
+      <AlertTriangle size={10} />
+      {isHigh ? 'Prioridade Alta' : 'Prioridade Média'}
+    </span>
+  );
+}
+
+// ─── Lead Card ────────────────────────────────────────────────────────────────
+
+function LeadCard({ lead, onConvert }: { lead: AutomationLead; onConvert: (lead: AutomationLead) => void }) {
+  const isNew = !lead.viewed_at;
+  const initial = lead.name?.charAt(0).toUpperCase() || '?';
+
+  const handleWhatsApp = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const phone = lead.phone.replace(/\D/g, '');
+    window.open(`https://wa.me/55${phone}`, '_blank');
+  };
+
+  const handlePhone = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.location.href = `tel:+55${lead.phone.replace(/\D/g, '')}`;
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ duration: 0.25 }}
+    >
+      <div className={`rounded-2xl border bg-card-bg shadow-sm overflow-hidden transition-all hover:shadow-md ${isNew ? 'border-l-4 border-l-green-500 border-t-green-100 border-r-green-100 border-b-green-100' : 'border-surface-200'
+        }`}>
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-4 pt-3 pb-2">
+          <div className="flex items-center gap-2">
+            {isNew && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#25D366]/10 text-[#128C7E]">
+              <MessageCircle size={10} />
+              WhatsApp
+            </span>
+            <PriorityBadge metadata={lead.ai_metadata} />
+          </div>
+          <span className="text-[10px] text-text-secondary flex items-center gap-1">
+            <Clock size={10} />
+            {timeAgo(lead.timestamp)}
+          </span>
+        </div>
+
+        {/* Body */}
+        <div className="px-4 pb-3 flex gap-3">
+          {/* Avatar */}
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 mt-0.5">
+            {initial}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-text-primary text-base leading-tight">{lead.name}</h3>
+            <button
+              onClick={handlePhone}
+              className="text-xs text-blue-600 hover:underline font-mono mt-0.5"
+            >
+              {formatPhone(lead.phone)}
+            </button>
+
+            {/* AI Insights */}
+            {lead.aiSummary && (
+              <div className="mt-2 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-2.5">
+                <p className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1 mb-1">
+                  <Brain size={10} /> Insights da IA
+                </p>
+                <p className="text-xs text-text-primary leading-relaxed line-clamp-3">
+                  {lead.aiSummary}
+                </p>
+              </div>
+            )}
+
+            {/* Metadata chips */}
+            {lead.ai_metadata && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {lead.ai_metadata.region && (
+                  <span className="px-2 py-0.5 rounded-full bg-surface-100 text-text-secondary text-[10px]">
+                    📍 {lead.ai_metadata.region}
+                  </span>
+                )}
+                {lead.ai_metadata.propertyType && (
+                  <span className="px-2 py-0.5 rounded-full bg-surface-100 text-text-secondary text-[10px]">
+                    🏠 {lead.ai_metadata.propertyType}
+                  </span>
+                )}
+                {lead.ai_metadata.income && (
+                  <span className="px-2 py-0.5 rounded-full bg-surface-100 text-text-secondary text-[10px]">
+                    💰 {lead.ai_metadata.income}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex border-t border-surface-100">
+          <button
+            onClick={handleWhatsApp}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/10 transition-colors"
+          >
+            <MessageCircle size={14} />
+            Conversar
+          </button>
+          <div className="w-px bg-surface-100" />
+          <button
+            onClick={(e) => { e.stopPropagation(); onConvert(lead); }}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-gold-600 hover:bg-gold-50 transition-colors"
+          >
+            <UserPlus size={14} />
+            Criar Ficha
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Convert Lead Modal ───────────────────────────────────────────────────────
+
+function ConvertLeadModal({ lead, onClose, onConfirm }: {
+  lead: AutomationLead;
+  onClose: () => void;
+  onConfirm: (lead: AutomationLead, data: any) => Promise<void>;
+}) {
+  const [form, setForm] = useState({
+    name: lead.name || '',
+    phone: lead.phone || '',
+    cpf: '',
+    email: '',
+    profession: '',
+    grossIncome: lead.ai_metadata?.income || '',
+    incomeType: 'CLT' as string,
+    regionOfInterest: lead.ai_metadata?.region || '',
+    intendedValue: '',
+    observations: lead.aiSummary ? `Resumo IA: ${lead.aiSummary}` : '',
+    stage: 'Em Análise' as string,
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    await onConfirm(lead, form);
+    setLoading(false);
+  };
+
+  const inputClass = "w-full px-3 py-2 rounded-xl bg-surface-50 border border-surface-200 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-gold-200 transition-all placeholder:text-text-secondary";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 40 }}
+        className="relative bg-card-bg rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[88vh] overflow-y-auto"
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-card-bg px-5 pt-5 pb-3 border-b border-surface-100 z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                <Sparkles size={18} className="text-gold-500" />
+                Criar Ficha de Cliente
+              </h2>
+              <p className="text-xs text-text-secondary mt-0.5">Dados pré-preenchidos pelo agente de IA</p>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-surface-100 text-text-secondary">
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* AI Summary banner */}
+          {lead.aiSummary && (
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-3">
+              <p className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1 mb-1">
+                <Brain size={10} /> Resumo do Agente de IA
+              </p>
+              <p className="text-xs text-indigo-800 dark:text-indigo-200">{lead.aiSummary}</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className="text-xs font-medium text-text-secondary mb-1 block">Nome *</label>
+              <input className={inputClass} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required placeholder="Nome completo" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-text-secondary mb-1 block">Telefone *</label>
+              <input className={inputClass} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} required placeholder="(xx) xxxxx-xxxx" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-text-secondary mb-1 block">CPF</label>
+                <input className={inputClass} value={form.cpf} onChange={e => setForm(f => ({ ...f, cpf: e.target.value }))} placeholder="000.000.000-00" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-text-secondary mb-1 block">E-mail</label>
+                <input className={inputClass} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplo.com" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-text-secondary mb-1 block">Renda Aproximada</label>
+                <input className={inputClass} value={form.grossIncome} onChange={e => setForm(f => ({ ...f, grossIncome: e.target.value }))} placeholder="R$ 3.000" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-text-secondary mb-1 block">Tipo de Renda</label>
+                <select className={inputClass} value={form.incomeType} onChange={e => setForm(f => ({ ...f, incomeType: e.target.value }))}>
+                  <option>CLT</option>
+                  <option>MEI</option>
+                  <option>Autônomo</option>
+                  <option>Funcionário Público</option>
+                  <option>Aposentado</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-text-secondary mb-1 block">Região de Interesse</label>
+                <input className={inputClass} value={form.regionOfInterest} onChange={e => setForm(f => ({ ...f, regionOfInterest: e.target.value }))} placeholder="Bairro / Cidade" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-text-secondary mb-1 block">Valor Pretendido</label>
+                <input className={inputClass} value={form.intendedValue} onChange={e => setForm(f => ({ ...f, intendedValue: e.target.value }))} placeholder="R$ 200.000" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-text-secondary mb-1 block">Etapa Inicial</label>
+              <select className={inputClass} value={form.stage} onChange={e => setForm(f => ({ ...f, stage: e.target.value }))}>
+                {CLIENT_STAGES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-text-secondary mb-1 block">Observações</label>
+              <textarea className={`${inputClass} resize-none`} rows={3} value={form.observations} onChange={e => setForm(f => ({ ...f, observations: e.target.value }))} placeholder="Resumo da conversa inicial..." />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || !form.name || !form.phone}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gold-500 hover:bg-gold-600 text-white font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-gold"
+          >
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <BadgeCheck size={18} />}
+            {loading ? 'Criando Ficha...' : 'Confirmar e Criar Ficha'}
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Clients() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { clients, leads, loading } = useApp();
+  const { clients, leads, loading, convertLeadToClient, updateLead, userRole } = useApp();
 
+  const [mainTab, setMainTab] = useState<MainTab>('clientes');
   const [activeStage, setActiveStage] = useState<ClientStage | 'Todos'>('Todos');
   const [searchTerm, setSearchTerm] = useState('');
+  const [convertingLead, setConvertingLead] = useState<AutomationLead | null>(null);
+  const [convertSuccess, setConvertSuccess] = useState(false);
 
   useEffect(() => {
     if (location.state?.initialStage) {
       setActiveStage(location.state.initialStage);
+    }
+    if (location.state?.tab === 'novo_lead') {
+      setMainTab('novo_lead');
     }
   }, [location.state]);
 
@@ -28,61 +332,80 @@ export default function Clients() {
     return matchesStage && matchesSearch;
   });
 
-  const filteredLeads = leads.filter(lead => {
-    const matchesStage = activeStage === 'Todos' || activeStage === 'Novo Lead';
-    const matchesSearch =
-      lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.origin.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStage && matchesSearch;
-  });
+  const filteredLeads = leads.filter(lead =>
+    lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (lead.origin || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const handleCall = (phone: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (phone) window.location.href = `tel:+55${phone.replace(/\D/g, '')}`;
-  };
-
-
-  const handleOpenWhatsapp = (phone: string) => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    window.open(`https://wa.me/55${cleanPhone}`, '_blank');
-  };
-
-  const handleCreateClient = (lead: AutomationLead) => {
-    navigate('/clients/new', {
-      state: {
-        prefill: {
-          name: lead.name !== 'Contato via Instagram' && lead.name !== 'Visitante Site' ? lead.name : '',
-          phone: lead.phone,
-          origin: lead.origin,
-          notes: `Resumo IA: ${lead.aiSummary}\n\nDados Coletados:\nRenda: ${lead.data?.income}\nRegião: ${lead.data?.region}\nTipo: ${lead.data?.propertyType}`,
-        },
-      },
-    });
+  const handleConvertConfirm = async (lead: AutomationLead, formData: any) => {
+    const result = await convertLeadToClient(lead.id, formData);
+    if (result.success) {
+      setConvertingLead(null);
+      setConvertSuccess(true);
+      setTimeout(() => setConvertSuccess(false), 3000);
+    } else {
+      alert('Erro ao criar a ficha. Por favor, tente novamente.');
+    }
   };
 
   return (
     <div className="h-full flex flex-col bg-surface-50">
       {/* Header */}
-      <div className="px-6 pt-8 pb-4 bg-card-bg shadow-sm z-10">
+      <div className="px-6 pt-8 pb-3 bg-card-bg shadow-sm z-10">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold text-text-primary">Gestão de Clientes</h1>
-          <RoundedButton
-            size="sm"
-            onClick={() => navigate('/clients/new')}
-            className="flex items-center gap-1"
-          >
-            <Plus size={16} /> Novo
-          </RoundedButton>
+          {mainTab === 'clientes' && (
+            <RoundedButton size="sm" onClick={() => navigate('/clients/new')} className="flex items-center gap-1">
+              <Plus size={16} /> Novo
+            </RoundedButton>
+          )}
         </div>
+
+        {/* Main Tabs */}
+        <div className="flex gap-1 bg-surface-50 rounded-xl p-1">
+          <button
+            onClick={() => setMainTab('clientes')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all ${mainTab === 'clientes'
+                ? 'bg-card-bg shadow text-text-primary'
+                : 'text-text-secondary hover:text-text-primary'
+              }`}
+          >
+            Clientes
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-surface-100 text-text-secondary">
+              {clients.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setMainTab('novo_lead')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all ${mainTab === 'novo_lead'
+                ? 'bg-card-bg shadow text-text-primary'
+                : 'text-text-secondary hover:text-text-primary'
+              }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <Zap size={13} className={mainTab === 'novo_lead' ? 'text-green-500' : ''} />
+              Novo Lead
+            </span>
+            {leads.length > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-500 text-white animate-pulse">
+                {leads.length}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Search bar */}
+      <div className="px-6 pt-3 pb-2 bg-card-bg">
         <div className="flex gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
             <input
               type="text"
-              placeholder="Buscar cliente..."
+              placeholder={mainTab === 'clientes' ? 'Buscar cliente...' : 'Buscar lead...'}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-surface-50 rounded-xl text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 transition-all placeholder:text-text-secondary"
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 bg-surface-50 rounded-xl text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-gold-200 transition-all placeholder:text-text-secondary"
             />
           </div>
           <button className="p-3 bg-surface-50 rounded-xl text-text-secondary hover:bg-surface-100">
@@ -91,144 +414,159 @@ export default function Clients() {
         </div>
       </div>
 
-      {/* Filter Chips */}
-      <div className="pt-4 pb-2 px-6 overflow-x-auto no-scrollbar flex gap-2">
-        <button
-          onClick={() => setActiveStage('Todos')}
-          className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-all ${activeStage === 'Todos'
-            ? 'bg-gray-900 dark:bg-white text-white dark:text-black shadow-md'
-            : 'bg-card-bg text-text-secondary border border-surface-200'
-            }`}
-        >
-          Todos ({clients.length})
-        </button>
-        {CLIENT_STAGES.map((stage) => (
-          <button
-            key={stage}
-            onClick={() => setActiveStage(stage)}
-            className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-all ${activeStage === stage
-              ? 'bg-gold-500 text-white shadow-md'
-              : 'bg-card-bg text-text-secondary border border-surface-200'
-              }`}
-          >
-            {stage}
-          </button>
-        ))}
-      </div>
-
-      {/* Client List */}
-      <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto pb-24">
-        {loading && (
-          <div className="flex justify-center py-10">
-            <Loader2 className="animate-spin text-gold-500" size={32} />
+      {/* ── CLIENTES TAB ── */}
+      {mainTab === 'clientes' && (
+        <>
+          {/* Stage Filter Chips */}
+          <div className="pt-2 pb-2 px-6 overflow-x-auto no-scrollbar flex gap-2">
+            <button
+              onClick={() => setActiveStage('Todos')}
+              className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-all ${activeStage === 'Todos'
+                  ? 'bg-gray-900 dark:bg-white text-white dark:text-black shadow-md'
+                  : 'bg-card-bg text-text-secondary border border-surface-200'
+                }`}
+            >
+              Todos ({clients.length})
+            </button>
+            {CLIENT_STAGES.map(stage => (
+              <button
+                key={stage}
+                onClick={() => setActiveStage(stage)}
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-all ${activeStage === stage
+                    ? 'bg-gold-500 text-white shadow-md'
+                    : 'bg-card-bg text-text-secondary border border-surface-200'
+                  }`}
+              >
+                {stage}
+              </button>
+            ))}
           </div>
-        )}
 
-        {/* Automation Leads Section */}
-        {filteredLeads.length > 0 && (
-          <div className="space-y-4 mb-6">
-            {filteredLeads.map((lead) => (
+          <div className="flex-1 px-6 py-4 space-y-4 overflow-y-auto pb-24">
+            {loading && (
+              <div className="flex justify-center py-10">
+                <Loader2 className="animate-spin text-gold-500" size={32} />
+              </div>
+            )}
+            {filteredClients.map(client => (
               <PremiumCard
-                key={lead.id}
-                className="relative border-l-4 border-l-blue-500 bg-blue-50/30 dark:bg-blue-900/10"
+                key={client.id}
+                className="relative group cursor-pointer hover:border-gold-300 transition-colors"
+                onClick={() => navigate(`/clients/${client.id}`)}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">Novo Lead (Automação)</span>
+                  <div>
+                    <h3 className="font-bold text-text-primary text-lg">{client.name}</h3>
+                    <p className="text-sm text-text-secondary">{client.development || 'Sem empreendimento'}</p>
                   </div>
-                  <span className="text-xs text-text-secondary flex items-center gap-1">
-                    <Clock size={12} />
-                    {new Date(lead.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <StatusBadge status={client.stage} />
+                </div>
+                <div className="flex justify-between items-center mt-2 mb-4">
+                  <span className="font-mono text-sm font-semibold text-text-primary bg-surface-100 px-2 py-1 rounded-md">
+                    {client.intendedValue || '—'}
                   </span>
                 </div>
-
-                <div className="mb-3">
-                  <h3 className="font-bold text-text-primary text-lg">{lead.name}</h3>
-                  <p className="text-xs text-text-secondary truncate">{lead.origin}</p>
-                </div>
-
-                <div className="bg-surface-50 p-2 rounded-lg border border-surface-100 mb-4">
-                  <p className="text-xs text-text-secondary line-clamp-2">
-                    <span className="font-semibold text-text-primary">IA:</span> {lead.aiSummary}
-                  </p>
-                </div>
-
-                <div className="flex gap-2">
-                  <RoundedButton
-                    onClick={() => handleOpenWhatsapp(lead.phone)}
-                    className="flex-1 h-9 text-xs bg-[#25D366] hover:bg-[#128C7E] text-white border-none shadow-none"
-                  >
-                    <MessageCircle size={14} /> WhatsApp
+                <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                  <RoundedButton variant="secondary" size="sm" className="flex-1 h-9 text-xs" href={`tel:+55${client.phone?.replace(/\D/g, '')}`}>
+                    <Phone size={14} /> Ligar
                   </RoundedButton>
                   <RoundedButton
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 h-9 text-xs"
-                    onClick={() => handleCreateClient(lead)}
+                    variant="secondary" size="sm" className="flex-1 h-9 text-xs"
+                    onClick={e => { e.stopPropagation(); navigate(`/clients/${client.id}/email`); }}
                   >
-                    <UserPlus size={14} /> Ficha
+                    <Mail size={14} /> Email
                   </RoundedButton>
                 </div>
               </PremiumCard>
             ))}
-          </div>
-        )}
-
-        {/* Regular Clients */}
-        {filteredClients.map((client) => (
-          <PremiumCard
-            key={client.id}
-            className="relative group cursor-pointer hover:border-gold-300 transition-colors"
-            onClick={() => navigate(`/clients/${client.id}`)}
-          >
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                <h3 className="font-bold text-text-primary text-lg">{client.name}</h3>
-                <p className="text-sm text-text-secondary">{client.development || 'Sem empreendimento'}</p>
+            {filteredClients.length === 0 && !loading && (
+              <div className="flex flex-col items-center justify-center h-40 text-text-secondary gap-3">
+                <p>Nenhum cliente encontrado</p>
+                <RoundedButton size="sm" variant="outline" onClick={() => navigate('/clients/new')}>
+                  <Plus size={16} /> Adicionar cliente
+                </RoundedButton>
               </div>
-              <StatusBadge status={client.stage} />
-            </div>
-
-            <div className="flex justify-between items-center mt-2 mb-4">
-              <span className="font-mono text-sm font-semibold text-text-primary bg-surface-100 px-2 py-1 rounded-md">
-                {client.intendedValue || '—'}
-              </span>
-            </div>
-
-            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-              <RoundedButton
-                variant="secondary"
-                size="sm"
-                className="flex-1 h-9 text-xs"
-                href={`tel:+55${client.phone?.replace(/\D/g, '')}`}
-              >
-                <Phone size={14} /> Ligar
-              </RoundedButton>
-              <RoundedButton
-                variant="secondary"
-                size="sm"
-                className="flex-1 h-9 text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(`/clients/${client.id}/email`);
-                }}
-              >
-                <Mail size={14} /> Email
-              </RoundedButton>
-            </div>
-          </PremiumCard>
-        ))}
-
-        {filteredClients.length === 0 && filteredLeads.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-40 text-text-secondary gap-3">
-            <p>Nenhum cliente encontrado</p>
-            <RoundedButton size="sm" variant="outline" onClick={() => navigate('/clients/new')}>
-              <Plus size={16} /> Adicionar cliente
-            </RoundedButton>
+            )}
           </div>
+        </>
+      )}
+
+      {/* ── NOVO LEAD TAB ── */}
+      {mainTab === 'novo_lead' && (
+        <div className="flex-1 px-5 py-4 overflow-y-auto pb-24">
+          {/* Header info bar */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-xs text-text-secondary">Leads recebidos via WhatsApp pelo n8n</p>
+            </div>
+            <span className="text-xs font-semibold text-green-600 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              Fila ativa
+            </span>
+          </div>
+
+          {loading && (
+            <div className="flex justify-center py-10">
+              <Loader2 className="animate-spin text-gold-500" size={32} />
+            </div>
+          )}
+
+          {/* Success toast */}
+          <AnimatePresence>
+            {convertSuccess && (
+              <motion.div
+                initial={{ opacity: 0, y: -16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                className="mb-4 flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm font-semibold"
+              >
+                <CheckCircle2 size={16} />
+                Ficha criada com sucesso! O lead foi movido para Clientes.
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {filteredLeads.length === 0 && !loading ? (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center h-64 text-center"
+              >
+                <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-4">
+                  <CheckCircle2 size={32} className="text-green-500" />
+                </div>
+                <h3 className="text-lg font-semibold text-text-primary">Tudo em dia!</h3>
+                <p className="text-sm text-text-secondary max-w-xs mt-2">
+                  Não há novos leads na fila no momento. Quando chegarem via WhatsApp, aparecerão aqui automaticamente.
+                </p>
+              </motion.div>
+            ) : (
+              <div className="space-y-4">
+                {filteredLeads.map(lead => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    onConvert={setConvertingLead}
+                  />
+                ))}
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* ── Convert Modal ── */}
+      <AnimatePresence>
+        {convertingLead && (
+          <ConvertLeadModal
+            lead={convertingLead}
+            onClose={() => setConvertingLead(null)}
+            onConfirm={handleConvertConfirm}
+          />
         )}
-      </div>
+      </AnimatePresence>
     </div>
   );
 }

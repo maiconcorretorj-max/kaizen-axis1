@@ -133,6 +133,8 @@ interface AppContextValue {
   // Leads
   leads: AutomationLead[];
   refreshLeads: () => Promise<void>;
+  updateLead: (id: string, data: Partial<AutomationLead>) => Promise<void>;
+  convertLeadToClient: (leadId: string, clientData: any) => Promise<{ success: boolean; clientId?: string }>;
 
   // Storage
   uploadFile: (file: File, path: string, bucket?: string) => Promise<string | null>;
@@ -253,16 +255,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshLeads = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
+      let query = supabase
+        .from('leads')
+        .select('*')
+        .eq('stage', 'novo_lead')
+        .order('created_at', { ascending: false });
+
+      // RBAC: corretores só veem leads atribuídos a eles
+      const role = profile?.role || userRole;
+      if (role === 'Corretor') {
+        query = query.eq('assigned_to', user?.id);
+      } else if ((role === 'Gerente' || role === 'Coordenador' || role === 'Diretor') && profile?.directorate_id) {
+        query = query.eq('directorate_id', profile.directorate_id);
+      }
+      // Admin vê tudo — sem filtro adicional
+
+      const { data, error } = await query;
       if (error) throw error;
       const transformed: AutomationLead[] = (data || []).map(lead => ({
-        id: lead.id, name: lead.name, phone: lead.phone, origin: lead.origin,
-        timestamp: lead.created_at, aiSummary: lead.ai_summary,
-        interestLevel: lead.interest_level, data: lead.data
+        id: lead.id,
+        name: lead.name,
+        phone: lead.phone,
+        origin: lead.origin,
+        timestamp: lead.created_at,
+        aiSummary: lead.ai_summary,
+        interestLevel: lead.interest_level,
+        stage: lead.stage,
+        assigned_to: lead.assigned_to,
+        distribution_status: lead.distribution_status,
+        ai_metadata: lead.ai_metadata,
+        viewed_at: lead.viewed_at,
+        converted_at: lead.converted_at,
+        client_id: lead.client_id,
+        directorate_id: lead.directorate_id,
+        data: lead.ai_metadata || lead.data,
       }));
       setLeads(transformed);
     } catch (e) { console.error('Erro ao carregar leads:', e); }
-  }, []);
+  }, [profile, user, userRole]);
+
+  const updateLead = useCallback(async (id: string, data: Partial<AutomationLead>) => {
+    try {
+      const dbData: any = {};
+      if (data.stage !== undefined) dbData.stage = data.stage;
+      if (data.assigned_to !== undefined) dbData.assigned_to = data.assigned_to;
+      if (data.distribution_status !== undefined) dbData.distribution_status = data.distribution_status;
+      if (data.viewed_at !== undefined) dbData.viewed_at = data.viewed_at;
+      if (data.converted_at !== undefined) dbData.converted_at = data.converted_at;
+      if (data.client_id !== undefined) dbData.client_id = data.client_id;
+      if (data.name !== undefined) dbData.name = data.name;
+      const { error } = await supabase.from('leads').update(dbData).eq('id', id);
+      if (error) throw error;
+      await refreshLeads();
+    } catch (e) { console.error('Erro ao atualizar lead:', e); }
+  }, [refreshLeads]);
+
+
 
   const refreshClients = useCallback(async () => {
     try {
@@ -285,6 +333,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { console.error('Erro ao carregar clientes:', e); }
     finally { setLoading(false); }
   }, []);
+
+  const convertLeadToClient = useCallback(async (leadId: string, clientData: any): Promise<{ success: boolean; clientId?: string }> => {
+    try {
+      const { data: newClient, error: clientError } = await supabase.from('clients').insert([{
+        name: clientData.name,
+        phone: clientData.phone,
+        cpf: clientData.cpf || null,
+        email: clientData.email || null,
+        profession: clientData.profession || null,
+        gross_income: clientData.grossIncome || null,
+        income_type: clientData.incomeType || null,
+        region_of_interest: clientData.regionOfInterest || null,
+        intended_value: clientData.intendedValue || null,
+        observations: clientData.observations || null,
+        stage: clientData.stage || 'Em Análise',
+        owner_id: user?.id,
+        directorate_id: profile?.directorate_id || null,
+      }]).select().single();
+      if (clientError) throw clientError;
+
+      const now = new Date().toISOString();
+      const { error: leadError } = await supabase.from('leads').update({
+        stage: 'convertido',
+        client_id: newClient.id,
+        converted_at: now,
+      }).eq('id', leadId);
+      if (leadError) throw leadError;
+
+      await Promise.all([refreshLeads(), refreshClients()]);
+      return { success: true, clientId: newClient.id };
+    } catch (e: any) {
+      console.error('Erro ao converter lead:', e);
+      return { success: false };
+    }
+  }, [user, profile, refreshLeads, refreshClients]);
 
   const addClient = useCallback(async (data: Omit<Client, 'id' | 'history' | 'documents' | 'createdAt'>): Promise<Client | null> => {
     try {
@@ -710,7 +793,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       session, user, profile, allProfiles, userName, userRole,
       signOut, refreshProfiles, updateProfile,
       clients, loading, addClient, updateClient, deleteClient, getClient, refreshClients,
-      leads, refreshLeads,
+      leads, refreshLeads, updateLead, convertLeadToClient,
       uploadFile, addDocumentToClient, getDownloadUrl,
       appointments, refreshAppointments, addAppointment, updateAppointment, deleteAppointment,
       tasks, refreshTasks, addTask, updateTask, deleteTask,
