@@ -160,32 +160,28 @@ export default function Dashboard() {
             <PremiumCard highlight className="col-span-2 flex justify-between items-center cursor-pointer"
               onClick={() => navigate('/clients')}>
               <div>
-                <p className="text-sm text-gold-700 dark:text-gold-400 font-medium uppercase tracking-wider">Meu Desempenho (Mês Atual)</p>
-                <div className="mt-3 flex gap-6">
-                  <div>
-                    <h3 className="text-2xl font-bold text-text-primary">{totalSales}</h3>
-                    <p className="text-[10px] text-text-secondary uppercase font-bold tracking-wider mt-1">Vendas</p>
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-text-primary">{totalClients}</h3>
-                    <p className="text-[10px] text-text-secondary uppercase font-bold tracking-wider mt-1">Pastas</p>
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-text-primary">{appointments.length}</h3>
-                    <p className="text-[10px] text-text-secondary uppercase font-bold tracking-wider mt-1">Agendamentos</p>
-                  </div>
-                </div>
+                <p className="text-sm text-gold-700 dark:text-gold-400 font-medium uppercase tracking-wider">Vendas Concluídas</p>
+                <h3 className="text-3xl font-bold text-text-primary mt-1">{totalSales}</h3>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">{totalClients} clientes totais</p>
               </div>
-              <div className="hidden sm:flex h-12 w-12 rounded-full bg-gold-100 dark:bg-gold-900/40 items-center justify-center text-gold-600 font-bold text-xl">
-                <Target size={24} />
-              </div>
+              <div className="h-12 w-12 rounded-full bg-gold-100 dark:bg-gold-900/40 flex items-center justify-center text-gold-600 font-bold text-xl">{totalSales}</div>
+            </PremiumCard>
+            <PremiumCard className="cursor-pointer" onClick={() => navigate('/clients', { state: { initialStage: 'Em Análise' } })}>
+              <p className="text-xs text-text-secondary uppercase">Em Análise</p>
+              <h3 className="text-2xl font-bold text-text-primary mt-2">{String(emAnalise).padStart(2, '0')}</h3>
+            </PremiumCard>
+            <PremiumCard className="cursor-pointer" onClick={() => navigate('/clients', { state: { initialStage: 'Aprovado' } })}>
+              <p className="text-xs text-text-secondary uppercase">Aprovados</p>
+              <h3 className="text-2xl font-bold text-green-600 dark:text-green-400 mt-2">{String(aprovados).padStart(2, '0')}</h3>
             </PremiumCard>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
+          <section className="mt-8"><FunnelChart /></section>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
             {/* Weekly Appointments */}
             <section>
-              <SectionHeader title="Agendamentos da Semana" subtitle="Todos os seus compromissos para esta semana" />
+              <SectionHeader title="Agendamentos da Semana" subtitle="Todos os seus compromissos" />
               <div className="space-y-3">
                 {appointments.length === 0 ? (
                   <PremiumCard className="text-center py-6">
@@ -214,6 +210,37 @@ export default function Dashboard() {
               </div>
             </section>
 
+            {/* Goals */}
+            <section>
+              <SectionHeader title="Missões e Metas" subtitle="Objetivos pessoais" />
+              <div className="space-y-3">
+                {goals.slice(0, 3).length === 0 ? (
+                  <PremiumCard className="text-center py-6">
+                    <Target className="mx-auto mb-2 text-surface-300 dark:text-surface-700" size={32} />
+                    <p className="text-text-secondary text-sm">Nenhuma meta ativa atribuída.</p>
+                  </PremiumCard>
+                ) : (
+                  goals.slice(0, 3).map((goal) => (
+                    <PremiumCard key={goal.id}>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-semibold text-text-primary text-sm line-clamp-1">{goal.title}</span>
+                        <span className="text-xs font-bold text-gold-600 ml-2 whitespace-nowrap">{goal.points} pts</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-surface-200 rounded-full overflow-hidden mb-1">
+                        <div
+                          className="h-full bg-gold-400 rounded-full transition-all duration-1000"
+                          style={{ width: `${Math.min(100, ((goal.current_progress || 0) / (goal.target || 1)) * 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-text-secondary font-medium tracking-wide">
+                        <span>PROGRESSO</span>
+                        <span>{goal.current_progress || 0} DE {goal.target}</span>
+                      </div>
+                    </PremiumCard>
+                  ))
+                )}
+              </div>
+            </section>
           </div>
         </>
       )}
