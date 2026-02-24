@@ -213,6 +213,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [directorates, setDirectorates] = useState<Directorate[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Refs para evitar loop infinito: refreshLeads lê esses valores sem depender deles
+  const profileRef = React.useRef(profile);
+  const userRef = React.useRef(user);
+  const userRoleRef = React.useRef('Corretor');
+  React.useEffect(() => { profileRef.current = profile; }, [profile]);
+  React.useEffect(() => { userRef.current = user; }, [user]);
+  React.useEffect(() => { userRoleRef.current = profile?.role || 'Corretor'; }, [profile]);
+
   const userName = profile?.name || user?.email || 'Usuário';
   const userRole = profile?.role || 'Corretor';
 
@@ -255,24 +263,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshLeads = useCallback(async () => {
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from('leads')
         .select('*')
-        .eq('stage', 'novo_lead')
         .order('created_at', { ascending: false });
 
-      // RBAC: corretores só veem leads atribuídos a eles
-      const role = profile?.role || userRole;
-      if (role === 'Corretor') {
-        query = query.eq('assigned_to', user?.id);
-      } else if ((role === 'Gerente' || role === 'Coordenador' || role === 'Diretor') && profile?.directorate_id) {
-        query = query.eq('directorate_id', profile.directorate_id);
-      }
-      // Admin vê tudo — sem filtro adicional
+      // Silently skip if DB error (e.g. column not yet migrated)
+      if (error) { console.warn('refreshLeads skipped:', error.message); return; }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      const transformed: AutomationLead[] = (data || []).map(lead => ({
+      const role = profileRef.current?.role || userRoleRef.current;
+      const uid = userRef.current?.id;
+
+      const filtered = (data || []).filter((lead: any) => {
+        // Hide converted leads (client-side, only if column exists)
+        if (lead.stage && lead.stage !== 'novo_lead') return false;
+        // RBAC filter client-side
+        if (role === 'Admin') return true;
+        if (role === 'Corretor') return !lead.assigned_to || lead.assigned_to === uid;
+        if ((role === 'Gerente' || role === 'Coordenador' || role === 'Diretor') && profileRef.current?.directorate_id) {
+          return !lead.directorate_id || lead.directorate_id === profileRef.current.directorate_id;
+        }
+        return true;
+      });
+
+      const transformed: AutomationLead[] = filtered.map((lead: any) => ({
         id: lead.id,
         name: lead.name,
         phone: lead.phone,
@@ -292,7 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }));
       setLeads(transformed);
     } catch (e) { console.error('Erro ao carregar leads:', e); }
-  }, [profile, user, userRole]);
+  }, []);
 
   const updateLead = useCallback(async (id: string, data: Partial<AutomationLead>) => {
     try {
@@ -745,6 +759,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ]);
   }, [refreshClients, refreshLeads, refreshAppointments, refreshTasks, refreshDevelopments, refreshTeams, refreshGoals, refreshAnnouncements, refreshProfiles, refreshDirectorates]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -784,7 +799,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, [loadAllData, refreshClients, refreshLeads, refreshAppointments, refreshTasks, refreshDevelopments]);
+  }, []); // ← dependências vazias: roda só na montagem, sem loop
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
