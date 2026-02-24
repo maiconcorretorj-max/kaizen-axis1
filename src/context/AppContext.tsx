@@ -347,10 +347,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const uploadFile = async (file: File, path: string, bucket = 'documents'): Promise<string | null> => {
     try {
-      const { data, error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
+      // Remove accents and special characters to prevent Supabase Storage "Invalid key" errors
+      const sanitizedPath = path.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9.\-_/]/g, '_');
+      const { data, error } = await supabase.storage.from(bucket).upload(sanitizedPath, file, { upsert: true });
       if (error) throw error;
       return data.path;
-    } catch (e) { console.error('Erro no upload:', e); return null; }
+    } catch (e: any) {
+      console.error('Erro no upload Storage:', e.message || e);
+      return null;
+    }
   };
 
   const addDocumentToClient = async (clientId: string, name: string, path: string): Promise<{ success: boolean; error?: string }> => {
