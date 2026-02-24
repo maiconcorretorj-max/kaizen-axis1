@@ -253,7 +253,7 @@ export default function DevelopmentDetails() {
               <div className="grid grid-cols-2 gap-3">
                 <RoundedButton
                   className="w-full flex items-center justify-center gap-2"
-                  href={`tel:${(development.contact?.phone || '').replace(/\D/g, '')}`}
+                  href={`tel:+55${(development.contact?.phone || '').replace(/\D/g, '')}`}
                 >
                   <Phone size={18} /> Ligar
                 </RoundedButton>

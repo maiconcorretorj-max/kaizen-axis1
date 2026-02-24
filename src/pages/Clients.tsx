@@ -38,7 +38,7 @@ export default function Clients() {
 
   const handleCall = (phone: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (phone) window.location.href = `tel:${phone.replace(/\D/g, '')}`;
+    if (phone) window.location.href = `tel:+55${phone.replace(/\D/g, '')}`;
   };
 
 
@@ -201,7 +201,7 @@ export default function Clients() {
                 variant="secondary"
                 size="sm"
                 className="flex-1 h-9 text-xs"
-                href={`tel:${client.phone?.replace(/\D/g, '')}`}
+                href={`tel:+55${client.phone?.replace(/\D/g, '')}`}
               >
                 <Phone size={14} /> Ligar
               </RoundedButton>
