@@ -512,85 +512,92 @@ export default function AdminPanel() {
                   <p className="text-sm text-gray-500">{new Date(reportDateRange.start).toLocaleDateString('pt-BR')} a {new Date(reportDateRange.end).toLocaleDateString('pt-BR')}</p>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:grid-cols-4 print:gap-4 print:mt-4">
+                <div className="grid grid-cols-2 gap-3 print:grid-cols-4 print:gap-4 print:mt-4">
                   {[
-                    { label: 'Total de Leads', value: reportData.resumo_geral.L, cmp: reportData.comparativo_mes_atual.crescimento_leads, icon: <Users size={18} />, color: 'text-surface-600', route: undefined },
-                    { label: 'Total de Clientes', value: reportData.resumo_geral.C, cmp: null, icon: <Users size={18} />, color: 'text-gold-600', route: '/clients' },
-                    { label: 'Aprovados', value: reportData.pipeline.find((p: any) => p.etapa === 'Aprovados')?.quantidade || 0, cmp: null, icon: <Shield size={18} />, color: 'text-green-600', route: '/clients' },
-                    { label: 'Agendamentos', value: reportData.resumo_geral.A, cmp: null, icon: <Calendar size={18} />, color: 'text-blue-600', route: '/schedule' },
+                    { label: 'Leads', value: reportData.resumo_geral.L, cmp: reportData.comparativo_mes_atual.crescimento_leads, icon: <Users size={14} />, color: 'text-surface-800', bg: 'bg-surface-50 text-surface-600', route: undefined },
+                    { label: 'Clientes', value: reportData.resumo_geral.C, cmp: null, icon: <Users size={14} />, color: 'text-gold-700', bg: 'bg-gold-50 text-gold-600', route: '/clients' },
+                    { label: 'Aprovados', value: reportData.pipeline.find((p: any) => p.etapa === 'Aprovados')?.quantidade || 0, cmp: null, icon: <Shield size={14} />, color: 'text-green-700', bg: 'bg-green-50 text-green-600', route: '/clients' },
+                    { label: 'Agenda', value: reportData.resumo_geral.A, cmp: null, icon: <Calendar size={14} />, color: 'text-blue-700', bg: 'bg-blue-50 text-blue-600', route: '/schedule' },
                   ].map((stat, i) => (
-                    <PremiumCard key={i} className={`p-4 relative ${stat.route ? 'cursor-pointer hover:border-gold-300 hover:shadow-md transition-all' : ''}`} onClick={() => stat.route && navigate(stat.route)}>
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="p-2 bg-surface-100 rounded-lg">{stat.icon}</span>
+                    <PremiumCard key={i} className={`p-3 relative flex flex-col justify-between h-24 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border-surface-100 ${stat.route ? 'cursor-pointer hover:border-gold-300 hover:shadow-md transition-all' : ''}`} onClick={() => stat.route && navigate(stat.route)}>
+                      <div className="flex justify-between items-start">
+                        <span className={`p-1.5 rounded-md ${stat.bg}`}>{stat.icon}</span>
                         {stat.cmp !== null && (
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stat.cmp > 0 ? 'bg-green-100 text-green-700' : stat.cmp < 0 ? 'bg-red-100 text-red-700' : 'bg-surface-100 text-text-secondary'}`}>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-sm ${stat.cmp > 0 ? 'bg-green-50 text-green-700' : stat.cmp < 0 ? 'bg-red-50 text-red-700' : 'bg-surface-50 text-text-secondary'}`}>
                             {stat.cmp > 0 ? '+' : ''}{stat.cmp}%
                           </span>
                         )}
                       </div>
-                      <p className={`text-3xl font-black ${stat.color} mb-1`}>{stat.value}</p>
-                      <p className="text-xs font-semibold text-text-secondary">{stat.label}</p>
-                      {stat.route && <span className="absolute bottom-4 right-4 text-[10px] text-gold-500 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">Ver lista &rarr;</span>}
+                      <div className="mt-1">
+                        <p className={`text-2xl font-bold ${stat.color} leading-none`}>{stat.value}</p>
+                        <p className="text-[10px] uppercase tracking-wider font-semibold text-text-secondary mt-1">{stat.label}</p>
+                      </div>
                     </PremiumCard>
                   ))}
                 </div>
 
                 {/* STRATEGIC DASHBOARD */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:grid-cols-4 print:gap-4">
-                  <PremiumCard className="p-4 bg-gradient-to-br from-gold-50/50 to-white dark:from-gold-900/10 dark:to-surface-800 border-gold-100">
-                    <p className="text-xs font-bold tracking-wider text-gold-600 mb-1 flex items-center gap-1.5"><Trophy size={14} /> VENDAS CONCLUÍDAS</p>
-                    <p className="text-2xl font-black text-text-primary">{reportData.resumo_geral.V}</p>
-                    <p className="text-[10px] font-semibold text-text-secondary mt-1 flex items-center gap-1">
-                      <span className={reportData.comparativo_mes_atual.crescimento_vendas > 0 ? 'text-green-600' : reportData.comparativo_mes_atual.crescimento_vendas < 0 ? 'text-red-600' : ''}>
-                        {reportData.comparativo_mes_atual.crescimento_vendas > 0 ? '+' : ''}{reportData.comparativo_mes_atual.crescimento_vendas}%
-                      </span>
-                      vs mês atual
-                    </p>
-                  </PremiumCard>
-                  <PremiumCard className="p-4 bg-gradient-to-br from-green-50/50 to-white dark:from-green-900/10 dark:to-surface-800 border-green-100">
-                    <p className="text-xs font-bold tracking-wider text-green-600 mb-1 flex items-center gap-1.5"><TrendingUp size={14} /> RECEITA (VGV)</p>
-                    <p className="text-2xl font-black text-text-primary">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(reportData.resumo_geral.R)}
-                    </p>
-                    <p className="text-[10px] font-semibold text-text-secondary mt-1 flex items-center gap-1">
-                      <span className={reportData.comparativo_mes_atual.crescimento_receita > 0 ? 'text-green-600' : reportData.comparativo_mes_atual.crescimento_receita < 0 ? 'text-red-600' : ''}>
-                        {reportData.comparativo_mes_atual.crescimento_receita > 0 ? '+' : ''}{reportData.comparativo_mes_atual.crescimento_receita}%
-                      </span>
-                      vs mês atual
-                    </p>
-                  </PremiumCard>
-                  <PremiumCard className="p-4 bg-gradient-to-br from-blue-50/50 to-white dark:from-blue-900/10 dark:to-surface-800 border-blue-100">
-                    <p className="text-xs font-bold tracking-wider text-blue-600 mb-1 flex items-center gap-1.5"><Target size={14} /> CONVERSÃO GLOBAL</p>
-                    <div className="flex items-end gap-2">
-                      <p className="text-2xl font-black text-text-primary">{reportData.resumo_geral.Taxa_Conversao}%</p>
-                      <span className="text-xs text-text-secondary mb-1">de conversão</span>
+                <div className="grid grid-cols-2 gap-3 print:grid-cols-4 print:gap-4">
+                  <PremiumCard className="p-3 bg-gradient-to-br from-gold-50/50 to-white dark:from-gold-900/10 dark:to-surface-800 border-gold-100 shadow-[0_2px_10px_rgba(0,0,0,0.03)] h-28 flex flex-col justify-between">
+                    <p className="text-[10px] uppercase font-bold tracking-wider text-gold-600 flex items-center gap-1"><Trophy size={12} /> Vendas</p>
+                    <div>
+                      <p className="text-2xl font-bold text-text-primary leading-none">{reportData.resumo_geral.V}</p>
+                      <p className="text-[9px] font-semibold text-text-secondary mt-1.5 flex items-center gap-1">
+                        <span className={reportData.comparativo_mes_atual.crescimento_vendas > 0 ? 'text-green-600' : reportData.comparativo_mes_atual.crescimento_vendas < 0 ? 'text-red-600' : ''}>
+                          {reportData.comparativo_mes_atual.crescimento_vendas > 0 ? '+' : ''}{reportData.comparativo_mes_atual.crescimento_vendas}%
+                        </span>
+                        vs anterior
+                      </p>
                     </div>
-                    <p className="text-[10px] font-bold text-text-secondary mt-1 bg-white inline-block px-2 py-0.5 rounded border border-surface-100">
-                      Ticket Médio: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(reportData.resumo_geral.Ticket_Medio)}
-                    </p>
                   </PremiumCard>
-                  <PremiumCard className="p-4 bg-gradient-to-br from-purple-50/50 to-white dark:from-purple-900/10 dark:to-surface-800 border-purple-100">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-xs font-bold tracking-wider text-purple-600">JORNADA (TMC)</p>
-                      <div className="group relative">
-                        <div className="w-4 h-4 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-[10px] font-bold cursor-help">?</div>
-                        <div className="absolute right-0 bottom-6 w-48 p-2 bg-surface-800 text-white text-[10px] rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">Tempo Médio de Conversão, da criação do lead até a venda.</div>
+
+                  <PremiumCard className="p-3 bg-gradient-to-br from-green-50/50 to-white dark:from-green-900/10 dark:to-surface-800 border-green-100 shadow-[0_2px_10px_rgba(0,0,0,0.03)] h-28 flex flex-col justify-between">
+                    <p className="text-[10px] uppercase font-bold tracking-wider text-green-600 flex items-center gap-1"><TrendingUp size={12} /> VGV</p>
+                    <div>
+                      <p className="text-xl font-bold text-text-primary leading-none whitespace-nowrap">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0, notation: 'compact' }).format(reportData.resumo_geral.R)}
+                      </p>
+                      <p className="text-[9px] font-semibold text-text-secondary mt-1.5 flex items-center gap-1">
+                        <span className={reportData.comparativo_mes_atual.crescimento_receita > 0 ? 'text-green-600' : reportData.comparativo_mes_atual.crescimento_receita < 0 ? 'text-red-600' : ''}>
+                          {reportData.comparativo_mes_atual.crescimento_receita > 0 ? '+' : ''}{reportData.comparativo_mes_atual.crescimento_receita}%
+                        </span>
+                        vs anterior
+                      </p>
+                    </div>
+                  </PremiumCard>
+
+                  <PremiumCard className="p-3 bg-gradient-to-br from-blue-50/50 to-white dark:from-blue-900/10 dark:to-surface-800 border-blue-100 shadow-[0_2px_10px_rgba(0,0,0,0.03)] h-28 flex flex-col justify-between">
+                    <p className="text-[10px] uppercase font-bold tracking-wider text-blue-600 flex items-center gap-1"><Target size={12} /> Conversão</p>
+                    <div>
+                      <div className="flex items-end gap-1 mb-1">
+                        <p className="text-2xl font-bold text-text-primary leading-none">{reportData.resumo_geral.Taxa_Conversao}%</p>
                       </div>
+                      <p className="text-[9px] font-semibold text-text-secondary bg-white inline-block px-1.5 py-0.5 rounded border border-surface-100/50 shadow-sm mt-0.5 whitespace-nowrap">
+                        T.M: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0, notation: 'compact' }).format(reportData.resumo_geral.Ticket_Medio)}
+                      </p>
                     </div>
-                    <p className="text-2xl font-black text-text-primary">{reportData.resumo_geral.Tempo_Medio_Conversao} <span className="text-[13px] font-bold text-text-secondary">dias</span></p>
-                    <p className="text-[10px] font-semibold text-text-secondary mt-1 ml-0.5">Média calculada para o período</p>
+                  </PremiumCard>
+
+                  <PremiumCard className="p-3 bg-gradient-to-br from-purple-50/50 to-white dark:from-purple-900/10 dark:to-surface-800 border-purple-100 shadow-[0_2px_10px_rgba(0,0,0,0.03)] h-28 flex flex-col justify-between">
+                    <p className="text-[10px] uppercase font-bold tracking-wider text-purple-600 flex items-center gap-1 justify-between">
+                      <span className="flex items-center gap-1"><Calendar size={12} /> Jornada</span>
+                    </p>
+                    <div>
+                      <p className="text-2xl font-bold text-text-primary leading-none">{reportData.resumo_geral.Tempo_Medio_Conversao} <span className="text-[10px] font-bold text-text-secondary tracking-normal">dias</span></p>
+                      <p className="text-[9px] font-semibold text-text-secondary mt-1.5 flex items-center gap-1">TMC em média</p>
+                    </div>
                   </PremiumCard>
                 </div>
 
                 {/* CHARTS LAYER */}
                 <div className="grid grid-cols-1 gap-4 print:grid-cols-2 print:gap-6 print:break-inside-avoid">
-                  <PremiumCard className="p-5">
-                    <h4 className="font-bold text-text-primary mb-6 flex items-center gap-2"><BarChart3 size={18} className="text-gold-500" /> Distribuição de Pipeline (Clientes Ativos)</h4>
-                    <div className="h-64 w-full">
+                  <PremiumCard className="p-4 border-surface-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+                    <h4 className="text-[11px] uppercase tracking-wider font-bold text-text-secondary mb-4 flex items-center gap-1.5"><BarChart3 size={14} className="text-gold-500" /> Distribuição de Pipeline</h4>
+                    <div className="h-48 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={reportData.pipeline}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                          <XAxis dataKey="etapa" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} />
+                          <XAxis dataKey="etapa" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#6B7280' }} />
                           <YAxis hide />
                           <Tooltip
                             cursor={{ fill: 'transparent' }}
@@ -603,20 +610,20 @@ export default function AdminPanel() {
                     </div>
                   </PremiumCard>
 
-                  <PremiumCard className="p-5">
-                    <h4 className="font-bold text-text-primary mb-6 flex items-center gap-2"><TrendingUp size={18} className="text-blue-500" /> Tendência no Período</h4>
-                    <div className="h-64 w-full">
+                  <PremiumCard className="p-4 border-surface-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+                    <h4 className="text-[11px] uppercase tracking-wider font-bold text-text-secondary mb-4 flex items-center gap-1.5"><TrendingUp size={14} className="text-blue-500" /> Tendência no Período</h4>
+                    <div className="h-48 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={reportData.tendencia_temporal}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                          <XAxis dataKey="periodo" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} tickFormatter={(v) => v.substring(5, 10).replace('-', '/')} />
+                          <XAxis dataKey="periodo" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#6B7280' }} tickFormatter={(v) => v.substring(8, 10) + '/' + v.substring(5, 7)} />
                           <YAxis hide yAxisId="left" />
                           <YAxis hide yAxisId="right" orientation="right" />
                           <Tooltip
                             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
                             labelFormatter={(label) => `Data: ${label.split('-').reverse().join('/')}`}
                           />
-                          <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                          <Legend wrapperStyle={{ fontSize: '9px', paddingTop: '10px' }} />
                           <Line yAxisId="left" type="monotone" dataKey="Lt" name="Leads Adquiridos" stroke="#9CA3AF" strokeWidth={2} dot={false} />
                           <Line yAxisId="left" type="monotone" dataKey="Vt" name="Vendas Concluídas" stroke="#10B981" strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 5 }} />
                           <Line yAxisId="right" type="monotone" dataKey="Rt" name="Receita" stroke="#3B82F6" strokeWidth={2} dot={false} strokeDasharray="5 5" />
@@ -627,46 +634,44 @@ export default function AdminPanel() {
                 </div>
 
                 {/* RANKING TABLE */}
-                <PremiumCard className="p-0 overflow-hidden border border-surface-200 shadow-sm">
-                  <div className="p-4 border-b border-surface-100 flex items-center justify-between bg-surface-50">
-                    <h4 className="font-bold text-text-primary flex items-center gap-2"><Trophy size={18} className="text-gold-500" /> Performance Individual de Corretores</h4>
-                    <span className="text-xs font-semibold text-text-secondary bg-white px-3 py-1 border border-surface-200 rounded-full shadow-sm">{reportData.performance_corretores.length} corretores no período</span>
+                <PremiumCard className="p-0 overflow-hidden border-surface-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] mt-4">
+                  <div className="p-3 border-b border-surface-100 flex items-center justify-between bg-surface-50">
+                    <h4 className="text-[11px] uppercase tracking-wider font-bold text-text-secondary flex items-center gap-1.5"><Trophy size={14} className="text-gold-500" /> Ranking de Corretores</h4>
+                    <span className="text-[10px] font-bold text-text-secondary bg-white px-2 py-0.5 border border-surface-200 rounded-md shadow-sm">{reportData.performance_corretores.length} ativos</span>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                  <div className="overflow-x-auto no-scrollbar">
+                    <table className="w-full text-left border-collapse min-w-[380px]">
                       <thead>
-                        <tr className="bg-surface-50 text-text-secondary text-[10px] uppercase tracking-wider">
-                          <th className="p-4 font-bold">Corretor</th>
-                          <th className="p-4 font-bold text-center">Volume Leads</th>
-                          <th className="p-4 font-bold text-center">Vendas Concluídas</th>
-                          <th className="p-4 font-bold text-center">Taxa de Conversão</th>
-                          <th className="p-4 font-bold text-right">VGV / Receita</th>
-                          <th className="p-4 font-bold text-right">Ticket Médio</th>
+                        <tr className="bg-white text-text-secondary text-[9px] uppercase tracking-wider border-b border-surface-100">
+                          <th className="p-3 font-bold">Corretor</th>
+                          <th className="p-3 font-bold text-center">Leads</th>
+                          <th className="p-3 font-bold text-center">Vendas</th>
+                          <th className="p-3 font-bold text-center">Conversão</th>
+                          <th className="p-3 font-bold text-right">VGV / Receita</th>
                         </tr>
                       </thead>
                       <tbody>
                         {reportData.performance_corretores.sort((a: any, b: any) => b.Vi - a.Vi || b.Ri - a.Ri).map((c: any, i: number) => (
-                          <tr key={c.corretor_id} className="border-b border-surface-100 last:border-0 hover:bg-surface-50 transition-colors">
-                            <td className="p-4 text-sm font-semibold text-text-primary flex items-center gap-3">
+                          <tr key={c.corretor_id} className="border-b border-surface-50 last:border-0 hover:bg-surface-50/50 transition-colors">
+                            <td className="p-3 text-[11px] font-bold text-text-primary flex items-center gap-2">
                               {i < 3 ? (
-                                <span className={`text-[10px] w-6 h-6 flex items-center justify-center rounded-full font-bold shadow-sm ${i === 0 ? 'bg-gradient-to-br from-yellow-300 to-yellow-500 text-white' : i === 1 ? 'bg-gradient-to-br from-gray-200 to-gray-400 text-white' : 'bg-gradient-to-br from-orange-300 to-orange-500 text-white'}`}>{i + 1}</span>
+                                <span className={`text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold shadow-sm shrink-0 ${i === 0 ? 'bg-gradient-to-br from-yellow-300 to-yellow-500 text-white' : i === 1 ? 'bg-gradient-to-br from-gray-200 to-gray-400 text-white' : 'bg-gradient-to-br from-orange-300 to-orange-500 text-white'}`}>{i + 1}</span>
                               ) : (
-                                <span className="text-[10px] w-6 h-6 flex items-center justify-center rounded-full font-bold bg-surface-100 text-text-secondary">{i + 1}</span>
+                                <span className="text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold bg-surface-100 text-text-secondary shrink-0">{i + 1}</span>
                               )}
-                              {c.nome}
+                              <span className="truncate max-w-[70px]" title={c.nome}>
+                                {c.nome.split(' ')[0]} {c.nome.split(' ').length > 1 ? c.nome.split(' ')[c.nome.split(' ').length - 1].charAt(0) + '.' : ''}
+                              </span>
                             </td>
-                            <td className="p-4 text-sm text-center text-text-secondary">{c.Li}</td>
-                            <td className="p-4 text-sm text-center font-black text-green-600">{c.Vi}</td>
-                            <td className="p-4 text-sm text-center">
-                              <span className={`px-2.5 py-1 rounded-md border text-[11px] font-bold shadow-xs ${c.Taxa_Conversao_i >= 5 ? 'bg-green-50 text-green-700 border-green-200' : c.Taxa_Conversao_i > 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-surface-50 text-text-secondary border-surface-200'}`}>
+                            <td className="p-3 text-[11px] text-center text-text-secondary font-medium">{c.Li}</td>
+                            <td className="p-3 text-[11px] text-center font-black text-green-600">{c.Vi}</td>
+                            <td className="p-3 text-center">
+                              <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold ${c.Taxa_Conversao_i >= 5 ? 'bg-green-50 text-green-700' : c.Taxa_Conversao_i > 0 ? 'bg-blue-50 text-blue-700' : 'bg-surface-50 text-text-secondary'}`}>
                                 {c.Taxa_Conversao_i}%
                               </span>
                             </td>
-                            <td className="p-4 text-sm text-right font-bold text-text-primary">
-                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(c.Ri)}
-                            </td>
-                            <td className="p-4 text-sm text-right font-medium text-text-secondary">
-                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(c.Ticket_Medio_i)}
+                            <td className="p-3 text-[11px] text-right font-bold text-text-primary tracking-tight">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0, notation: 'compact' }).format(c.Ri)}
                             </td>
                           </tr>
                         ))}
