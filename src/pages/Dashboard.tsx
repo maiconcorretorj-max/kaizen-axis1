@@ -158,7 +158,7 @@ export default function Dashboard() {
         <>
           <div className="grid grid-cols-2 gap-4">
             <PremiumCard highlight className="col-span-2 flex justify-between items-center cursor-pointer"
-              onClick={() => navigate('/clients')}>
+              onClick={() => navigate('/clients', { state: { initialStage: 'Concluído' } })}>
               <div>
                 <p className="text-sm text-gold-700 dark:text-gold-400 font-medium uppercase tracking-wider">Vendas Concluídas</p>
                 <h3 className="text-3xl font-bold text-text-primary mt-1">{totalSales}</h3>
