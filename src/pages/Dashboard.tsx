@@ -4,7 +4,7 @@ import { Bell, Loader2, Users, TrendingUp, Target, Calendar, Building2 } from 'l
 import { FunnelChart } from '@/components/ui/FunnelChart';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { useNavigate } from 'react-router-dom';
-import { MOCK_ANNOUNCEMENTS } from '@/data/admin';
+
 import { AnnouncementCard } from '@/components/admin/AnnouncementCard';
 import { useApp } from '@/context/AppContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
@@ -12,13 +12,14 @@ import { useAuthorization } from '@/hooks/useAuthorization';
 export default function Dashboard() {
   const navigate = useNavigate();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const { clients, appointments, goals, userName, loading, directorates, allProfiles } = useApp();
+  const { clients, appointments, goals, announcements, userName, loading, directorates, allProfiles, profile, user } = useApp();
   const { isAdmin, isDirector, isManager, isCoordinator, isBroker, directorateId, role } = useAuthorization();
 
-  // Active announcements
-  const activeAnnouncements = MOCK_ANNOUNCEMENTS.filter(a => {
-    const now = new Date();
-    return new Date(a.startDate) <= now && new Date(a.endDate) >= now;
+  // Active announcements from the real database
+  const now = new Date();
+  const activeAnnouncements = announcements.filter(a => {
+    if (!a.start_date || !a.end_date) return true; // show permanently if no dates
+    return new Date(a.start_date) <= now && new Date(a.end_date) >= now;
   });
 
   // ── Data is already scoped by RLS on the backend ──────────────────────────
@@ -222,31 +223,40 @@ export default function Dashboard() {
             <section>
               <SectionHeader title="Missões e Metas" subtitle="Objetivos pessoais" />
               <div className="space-y-3">
-                {goals.slice(0, 3).length === 0 ? (
-                  <PremiumCard className="text-center py-6">
-                    <Target className="mx-auto mb-2 text-surface-300 dark:text-surface-700" size={32} />
-                    <p className="text-text-secondary text-sm">Nenhuma meta ativa atribuída.</p>
-                  </PremiumCard>
-                ) : (
-                  goals.slice(0, 3).map((goal) => (
-                    <PremiumCard key={goal.id}>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-semibold text-text-primary text-sm line-clamp-1">{goal.title}</span>
-                        <span className="text-xs font-bold text-gold-600 ml-2 whitespace-nowrap">{goal.points} pts</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-surface-200 rounded-full overflow-hidden mb-1">
-                        <div
-                          className="h-full bg-gold-400 rounded-full transition-all duration-1000"
-                          style={{ width: `${Math.min(100, ((goal.current_progress || 0) / (goal.target || 1)) * 100)}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[10px] text-text-secondary font-medium tracking-wide">
-                        <span>PROGRESSO</span>
-                        <span>{goal.current_progress || 0} DE {goal.target}</span>
-                      </div>
-                    </PremiumCard>
-                  ))
-                )}
+                {(() => {
+                  const corretorGoals = goals.filter(g => !g.assignee_id || g.assignee_id === user?.id || g.assignee_type === 'All');
+
+                  if (corretorGoals.length === 0) {
+                    return (
+                      <PremiumCard className="text-center py-6">
+                        <Target className="mx-auto mb-2 text-surface-300 dark:text-surface-700" size={32} />
+                        <p className="text-text-secondary text-sm">Nenhuma meta ativa atribuída.</p>
+                      </PremiumCard>
+                    );
+                  }
+
+                  return corretorGoals.slice(0, 3).map((goal) => {
+                    const pct = Math.min(100, Math.round(((goal.current_progress || 0) / (goal.target || 1)) * 100));
+                    return (
+                      <PremiumCard key={goal.id}>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-semibold text-text-primary text-sm line-clamp-1">{goal.title}</span>
+                          <span className="text-xs font-bold text-gold-600 ml-2 whitespace-nowrap">{goal.points} pts</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-surface-200 rounded-full overflow-hidden mb-1">
+                          <div
+                            className={`h-full rounded-full transition-all duration-1000 ${pct >= 100 ? 'bg-green-500' : 'bg-gold-400'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-text-secondary font-medium tracking-wide">
+                          <span>PROGRESSO</span>
+                          <span>{goal.current_progress || 0} DE {goal.target}</span>
+                        </div>
+                      </PremiumCard>
+                    );
+                  });
+                })()}
               </div>
             </section>
           </div>
@@ -279,6 +289,50 @@ export default function Dashboard() {
             </PremiumCard>
           </div>
           <section><FunnelChart /></section>
+
+          {/* Goals & Missions for the team */}
+          {goals.length > 0 && (
+            <section>
+              <SectionHeader title="Metas e Missões da Equipe" subtitle="Acompanhe o progresso" />
+              <div className="space-y-3">
+                {goals.slice(0, 5).map((goal) => {
+                  const pct = Math.min(100, Math.round(((goal.current_progress || 0) / (goal.target || 1)) * 100));
+                  return (
+                    <PremiumCard key={goal.id}>
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1 min-w-0">
+                          <span className="font-semibold text-text-primary text-sm">{goal.title}</span>
+                          {goal.description && <p className="text-[11px] text-text-secondary mt-0.5 line-clamp-1">{goal.description}</p>}
+                        </div>
+                        <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                          {goal.points != null && <span className="text-xs font-bold text-gold-600">{goal.points} pts</span>}
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${pct >= 100 ? 'bg-green-100 text-green-700' : pct >= 60 ? 'bg-blue-100 text-blue-700' : 'bg-surface-100 text-text-secondary'
+                            }`}>{pct}%</span>
+                        </div>
+                      </div>
+                      <div className="h-2 w-full bg-surface-200 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-700 ${pct >= 100 ? 'bg-green-500' : 'bg-gold-400'}`}
+                          style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-text-secondary mt-1">
+                        <span>Progresso: {goal.current_progress || 0} de {goal.target || 0}</span>
+                        {goal.deadline && <span>Até {new Date(goal.deadline).toLocaleDateString('pt-BR')}</span>}
+                      </div>
+                    </PremiumCard>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+          {goals.length === 0 && (
+            <section>
+              <SectionHeader title="Metas e Missões da Equipe" />
+              <PremiumCard className="text-center py-6">
+                <Target className="mx-auto mb-2 text-surface-300" size={28} />
+                <p className="text-text-secondary text-sm">Nenhuma meta ativa no momento.</p>
+              </PremiumCard>
+            </section>
+          )}
         </>
       )}
 

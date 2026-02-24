@@ -608,6 +608,14 @@ export default function AdminPanel() {
             <textarea value={goalForm.description || ''} onChange={e => setGoalForm(p => ({ ...p, description: e.target.value }))}
               className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary h-20" />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Atribuir para</label>
+            <select value={goalForm.assignee_id || 'All'} onChange={e => setGoalForm(p => ({ ...p, assignee_id: e.target.value === 'All' ? undefined : e.target.value, assignee_type: e.target.value === 'All' ? 'All' : 'User' }))}
+              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 text-text-primary">
+              <option value="All">Todos (Global)</option>
+              {allProfiles.map(p => <option key={p.id} value={p.id}>{p.name} ({p.role})</option>)}
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">{isMission ? 'Pontos' : 'Alvo'}</label>
