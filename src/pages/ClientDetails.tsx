@@ -341,11 +341,7 @@ export default function ClientDetails() {
 
         {/* Documents */}
         <section>
-          {/* TEMP DEBUG BLOCK */}
-          <div className="bg-red-50 p-4 border border-red-200 rounded-lg mb-4 text-xs overflow-auto text-red-900">
-            <strong>DEBUG - Documentos do cliente (Array real):</strong>
-            <pre>{JSON.stringify(client?.documents, null, 2)}</pre>
-          </div>
+
 
           <SectionHeader
             title="Documentos Anexados"
