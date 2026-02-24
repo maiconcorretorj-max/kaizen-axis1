@@ -20,8 +20,6 @@ export default function ClientDetails() {
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   const [isUploading, setIsUploading] = useState(false);
 
-  console.log("Client Details Render:", { client, documents: client?.documents });
-
   // Load from context
   useEffect(() => {
     if (!id) return;
