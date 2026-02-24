@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { PremiumCard, StatusBadge, RoundedButton } from '@/components/ui/PremiumComponents';
 import {
   Search, Filter, Phone, Mail, MessageCircle, UserPlus,
-  Clock, Plus, Loader2, Zap, ChevronRight, X, Brain,
-  Sparkles, BadgeCheck, AlertTriangle, CheckCircle2
+  Clock, Plus, Loader2, Zap, Brain, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 import { CLIENT_STAGES, ClientStage } from '@/data/clients';
 import { AutomationLead } from '@/data/leads';
@@ -60,105 +59,68 @@ function LeadCard({ lead, onConvert }: { lead: AutomationLead; onConvert: (lead:
     window.open(`https://wa.me/55${phone}`, '_blank');
   };
 
-  const handlePhone = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    window.location.href = `tel:+55${lead.phone.replace(/\D/g, '')}`;
-  };
-
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.25 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ duration: 0.2 }}
+      className="bg-card-bg rounded-2xl border border-surface-200 shadow-sm hover:shadow-md hover:border-gold-200 transition-all overflow-hidden"
     >
-      <div className={`rounded-2xl border bg-card-bg shadow-sm overflow-hidden transition-all hover:shadow-md ${isNew ? 'border-l-4 border-l-green-500 border-t-green-100 border-r-green-100 border-b-green-100' : 'border-surface-200'
-        }`}>
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-4 pt-3 pb-2">
-          <div className="flex items-center gap-2">
-            {isNew && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#25D366]/10 text-[#128C7E]">
-              <MessageCircle size={10} />
-              WhatsApp
-            </span>
-            <PriorityBadge metadata={lead.ai_metadata} />
-          </div>
-          <span className="text-[10px] text-text-secondary flex items-center gap-1">
-            <Clock size={10} />
-            {timeAgo(lead.timestamp)}
-          </span>
-        </div>
-
-        {/* Body */}
-        <div className="px-4 pb-3 flex gap-3">
-          {/* Avatar */}
-          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 mt-0.5">
+      <div className="p-3.5">
+        {/* Row: avatar + info + time */}
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
             {initial}
           </div>
-
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-text-primary text-base leading-tight">{lead.name}</h3>
-            <button
-              onClick={handlePhone}
-              className="text-xs text-blue-600 hover:underline font-mono mt-0.5"
-            >
-              {formatPhone(lead.phone)}
-            </button>
-
-            {/* AI Insights */}
-            {lead.aiSummary && (
-              <div className="mt-2 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-2.5">
-                <p className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1 mb-1">
-                  <Brain size={10} /> Insights da IA
-                </p>
-                <p className="text-xs text-text-primary leading-relaxed line-clamp-3">
-                  {lead.aiSummary}
-                </p>
-              </div>
-            )}
-
-            {/* Metadata chips */}
-            {lead.ai_metadata && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {lead.ai_metadata.region && (
-                  <span className="px-2 py-0.5 rounded-full bg-surface-100 text-text-secondary text-[10px]">
-                    📍 {lead.ai_metadata.region}
-                  </span>
-                )}
-                {lead.ai_metadata.propertyType && (
-                  <span className="px-2 py-0.5 rounded-full bg-surface-100 text-text-secondary text-[10px]">
-                    🏠 {lead.ai_metadata.propertyType}
-                  </span>
-                )}
-                {lead.ai_metadata.income && (
-                  <span className="px-2 py-0.5 rounded-full bg-surface-100 text-text-secondary text-[10px]">
-                    💰 {lead.ai_metadata.income}
-                  </span>
-                )}
-              </div>
-            )}
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold text-text-primary text-sm truncate leading-tight">{lead.name}</p>
+              <span className="text-[10px] text-text-secondary flex items-center gap-0.5 flex-shrink-0">
+                <Clock size={9} />{timeAgo(lead.timestamp)}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-[10px] text-[#128C7E] font-mono cursor-pointer hover:underline" onClick={handleWhatsApp}>
+                {formatPhone(lead.phone)}
+              </span>
+              {isNew && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />}
+              {lead.ai_metadata?.priority === 'alta' && (
+                <span className="text-[9px] font-bold text-red-500 bg-red-50 border border-red-100 px-1.5 py-px rounded-full flex items-center gap-0.5">
+                  <AlertTriangle size={8} />Alta
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex border-t border-surface-100">
-          <button
-            onClick={handleWhatsApp}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/10 transition-colors"
-          >
-            <MessageCircle size={14} />
-            Conversar
-          </button>
-          <div className="w-px bg-surface-100" />
-          <button
-            onClick={(e) => { e.stopPropagation(); onConvert(lead); }}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-gold-600 hover:bg-gold-50 transition-colors"
-          >
-            <UserPlus size={14} />
-            Criar Ficha
-          </button>
-        </div>
+        {/* AI summary */}
+        {lead.aiSummary && (
+          <p className="mt-2.5 text-[11px] text-text-secondary leading-relaxed line-clamp-2">
+            <Brain size={9} className="inline mr-1 opacity-50" />
+            {lead.aiSummary}
+          </p>
+        )}
+
+        {/* Chips */}
+        {lead.ai_metadata && (lead.ai_metadata.region || lead.ai_metadata.propertyType || lead.ai_metadata.income) && (
+          <div className="flex gap-1 mt-2 flex-wrap">
+            {lead.ai_metadata.region && <span className="text-[9px] px-1.5 py-px rounded-full bg-surface-100 text-text-secondary border border-surface-200">📍 {lead.ai_metadata.region}</span>}
+            {lead.ai_metadata.propertyType && <span className="text-[9px] px-1.5 py-px rounded-full bg-surface-100 text-text-secondary border border-surface-200">🏠 {lead.ai_metadata.propertyType}</span>}
+            {lead.ai_metadata.income && <span className="text-[9px] px-1.5 py-px rounded-full bg-surface-100 text-text-secondary border border-surface-200">💰 {lead.ai_metadata.income}</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex border-t border-surface-100">
+        <button onClick={handleWhatsApp} className="flex-1 flex items-center justify-center gap-1 py-2 text-[11px] font-semibold text-[#128C7E] hover:bg-[#25D366]/5 transition-colors">
+          <MessageCircle size={11} /> Conversar
+        </button>
+        <div className="w-px bg-surface-100" />
+        <button onClick={(e) => { e.stopPropagation(); onConvert(lead); }} className="flex-1 flex items-center justify-center gap-1 py-2 text-[11px] font-semibold text-gold-600 hover:bg-gold-50 transition-colors">
+          <UserPlus size={11} /> Criar Ficha
+        </button>
       </div>
     </motion.div>
   );
