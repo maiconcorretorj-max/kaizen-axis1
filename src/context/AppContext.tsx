@@ -279,7 +279,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         intendedValue: client.intended_value, createdAt: client.created_at,
         history: (client.history || []).map((h: any) => ({ ...h, user: h.user_name }))
           .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-        documents: (client.documents || []).map((d: any) => ({ ...d, uploadDate: d.upload_date }))
+        documents: (client.documents || []).map((d: any) => ({ ...d, file_path: d.url || d.file_path, uploadDate: d.upload_date }))
       }));
       setClients(transformed);
     } catch (e) { console.error('Erro ao carregar clientes:', e); }
@@ -360,7 +360,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addDocumentToClient = async (clientId: string, name: string, path: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error } = await supabase.from('client_documents').insert([{ client_id: clientId, name, file_path: path }]);
+      const { error } = await supabase.from('client_documents').insert([{ client_id: clientId, name, url: path }]);
       if (error) return { success: false, error: error.message };
       await refreshClients();
       return { success: true };
