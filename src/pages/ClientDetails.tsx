@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PremiumCard, StatusBadge, SectionHeader, RoundedButton } from '@/components/ui/PremiumComponents';
-import { ChevronLeft, Phone, Mail, Calendar, Edit2, Check, Building2, Wallet, History, Trash2, FileText, Save, X } from 'lucide-react';
+import { ChevronLeft, Phone, Mail, Calendar, Edit2, Check, Building2, Wallet, History, Trash2, FileText, Save, X, UploadCloud } from 'lucide-react';
 import { Client, CLIENT_STAGES, ClientStage } from '@/data/clients';
 import { motion, AnimatePresence } from 'motion/react';
 import { Modal } from '@/components/ui/Modal';
@@ -10,7 +10,7 @@ import { useApp } from '@/context/AppContext';
 export default function ClientDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getClient, updateClient, deleteClient, userName, getDownloadUrl } = useApp();
+  const { getClient, updateClient, deleteClient, userName, getDownloadUrl, uploadFile, addDocumentToClient } = useApp();
 
   const [client, setClient] = useState<Client | null>(null);
   const [isEditingStage, setIsEditingStage] = useState(false);
@@ -18,6 +18,7 @@ export default function ClientDetails() {
   const [isDeleteClientModalOpen, setIsDeleteClientModalOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
+  const [isUploading, setIsUploading] = useState(false);
 
   // Load from context
   useEffect(() => {
@@ -69,6 +70,29 @@ export default function ClientDetails() {
       window.open(url, '_blank');
     } else {
       alert('Erro ao abrir documento.');
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !id) return;
+
+    setIsUploading(true);
+    try {
+      const filePath = `${id}/${Date.now()}-${file.name}`;
+      const uploadedPath = await uploadFile(file, filePath);
+
+      if (uploadedPath) {
+        await addDocumentToClient(id, file.name, uploadedPath);
+        alert('Documento anexado com sucesso!');
+      } else {
+        alert('Erro ao fazer upload do documento.');
+      }
+    } catch (e) {
+      alert('Erro inesperado durante o upload.');
+    } finally {
+      setIsUploading(false);
+      event.target.value = ''; // reset input
     }
   };
 
@@ -313,7 +337,27 @@ export default function ClientDetails() {
 
         {/* Documents */}
         <section>
-          <SectionHeader title="Documentos Anexados" />
+          <SectionHeader
+            title="Documentos Anexados"
+            action={
+              <div>
+                <input
+                  type="file"
+                  id="document-upload"
+                  className="hidden"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                />
+                <label
+                  htmlFor="document-upload"
+                  className={`text-gold-600 dark:text-gold-400 text-sm font-medium flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <UploadCloud size={16} /> {isUploading ? 'Enviando...' : 'Anexar Documento'}
+                </label>
+              </div>
+            }
+          />
           <div className="space-y-3">
             {client.documents && client.documents.length > 0 ? (
               client.documents.map(doc => (

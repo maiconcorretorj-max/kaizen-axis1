@@ -305,15 +305,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const updateClient = useCallback(async (id: string, data: Partial<Client>) => {
     try {
-      const updatePayload: any = { ...data };
+      const allowedFields = [
+        'name', 'cpf', 'email', 'phone', 'address', 'profession',
+        'gross_income', 'income_type', 'cotista', 'social_factor', 'region_of_interest',
+        'development', 'intended_value', 'observations', 'stage'
+      ];
+
+      const updatePayload: any = {};
+      Object.keys(data).forEach(key => {
+        if (allowedFields.includes(key)) {
+          updatePayload[key] = data[key as keyof Client];
+        }
+      });
+
       if (data.grossIncome !== undefined) updatePayload.gross_income = data.grossIncome;
       if (data.incomeType !== undefined) updatePayload.income_type = data.incomeType;
       if (data.socialFactor !== undefined) updatePayload.social_factor = data.socialFactor;
       if (data.regionOfInterest !== undefined) updatePayload.region_of_interest = data.regionOfInterest;
       if (data.intendedValue !== undefined) updatePayload.intended_value = data.intendedValue;
-      delete updatePayload.history; delete updatePayload.documents;
-      delete updatePayload.grossIncome; delete updatePayload.incomeType;
-      delete updatePayload.socialFactor; delete updatePayload.regionOfInterest; delete updatePayload.intendedValue;
+
       const { error } = await supabase.from('clients').update(updatePayload).eq('id', id);
       if (error) throw error;
       if (data.stage) {
