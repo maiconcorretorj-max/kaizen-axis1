@@ -19,7 +19,7 @@ export const BottomNav = () => {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-card-bg border-t border-surface-200 pb-safe pt-2 px-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
+    <div className="fixed bottom-0 left-0 right-0 bg-card-bg border-t border-surface-200 pb-safe pt-2 px-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 print:hidden">
       <div className="flex justify-between items-center max-w-md mx-auto">
         {navItems.map((item) => {
           const isActive = item.path === '/'
@@ -54,8 +54,8 @@ export const BottomNav = () => {
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <div className="min-h-screen bg-surface-50 pb-24 max-w-md mx-auto shadow-2xl shadow-black/5 overflow-hidden relative">
-      <main className="h-full overflow-y-auto no-scrollbar">
+    <div className="min-h-screen bg-surface-50 pb-24 max-w-md mx-auto shadow-2xl shadow-black/5 overflow-hidden relative print:pb-0 print:max-w-none print:shadow-none print:bg-white print:overflow-visible print:px-4">
+      <main className="h-full overflow-y-auto no-scrollbar print:overflow-visible">
         {children}
       </main>
       <BottomNav />

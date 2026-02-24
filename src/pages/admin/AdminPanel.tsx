@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { SectionHeader, PremiumCard, RoundedButton } from '@/components/ui/PremiumComponents';
-import { Users, Shield, Target, Megaphone, BarChart3, Plus, Search, Trophy, Download, FileSpreadsheet, FileText, Trash2, Edit2, ChevronDown, Calendar, Loader2, Building2, TrendingUp } from 'lucide-react';
+import { Users, Shield, Target, Megaphone, BarChart3, Plus, Search, Trophy, Download, FileSpreadsheet, FileText, Trash2, Edit2, ChevronDown, Calendar, Loader2, Building2, TrendingUp, Printer } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useApp, Team, Goal, Announcement, Directorate } from '@/context/AppContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
@@ -449,34 +449,53 @@ export default function AdminPanel() {
 
       case 'reports':
         return (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-surface-200 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Calendar size={18} className="text-gold-600" />
-                <span className="text-sm font-semibold text-text-primary whitespace-nowrap">Período Selecionado:</span>
-                <input
-                  type="date"
-                  value={reportDateRange.start}
-                  onChange={(e) => setReportDateRange(prev => ({ ...prev, start: e.target.value }))}
-                  className="px-2 py-1.5 border border-surface-200 rounded-md text-sm bg-surface-50 focus:border-gold-400 focus:ring-1 focus:ring-gold-400 outline-none transition-all"
-                  max={reportDateRange.end}
-                />
-                <span className="text-sm text-text-secondary mx-1">até</span>
-                <input
-                  type="date"
-                  value={reportDateRange.end}
-                  onChange={(e) => setReportDateRange(prev => ({ ...prev, end: e.target.value }))}
-                  className="px-2 py-1.5 border border-surface-200 rounded-md text-sm bg-surface-50 focus:border-gold-400 focus:ring-1 focus:ring-gold-400 outline-none transition-all"
-                  min={reportDateRange.start}
-                />
-                <div className="flex gap-1 ml-4 border-l border-surface-200 pl-4">
-                  <button onClick={() => setReportDateRange({ start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10), end: new Date().toISOString().slice(0, 10) })} className="px-3 py-1.5 bg-surface-100 text-xs font-semibold text-text-secondary rounded-md hover:bg-gold-50 hover:text-gold-700 transition-colors">Este Mês</button>
-                  <button onClick={() => { const today = new Date(); const m30 = new Date(); m30.setDate(today.getDate() - 30); setReportDateRange({ start: m30.toISOString().slice(0, 10), end: today.toISOString().slice(0, 10) }) }} className="px-3 py-1.5 bg-surface-100 text-xs font-semibold text-text-secondary rounded-md hover:bg-gold-50 hover:text-gold-700 transition-colors">Últimos 30 Dias</button>
+          <div className="space-y-6 print:space-y-4">
+            <div className="flex flex-col gap-4 print:hidden">
+              <div className="bg-white p-4 rounded-xl border border-surface-200 shadow-sm space-y-3">
+                <div className="flex items-center gap-2 text-gold-600 font-semibold mb-2">
+                  <Calendar size={18} />
+                  <span className="text-sm text-text-primary">Período do Relatório</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-text-secondary uppercase mb-1">Início</span>
+                    <input
+                      type="date"
+                      value={reportDateRange.start}
+                      onChange={(e) => setReportDateRange(prev => ({ ...prev, start: e.target.value }))}
+                      className="w-full px-2 py-2 border border-surface-200 rounded-lg text-sm bg-surface-50 focus:border-gold-400 focus:ring-1 focus:ring-gold-400 outline-none transition-all"
+                      max={reportDateRange.end}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-text-secondary uppercase mb-1">Fim</span>
+                    <input
+                      type="date"
+                      value={reportDateRange.end}
+                      onChange={(e) => setReportDateRange(prev => ({ ...prev, end: e.target.value }))}
+                      className="w-full px-2 py-2 border border-surface-200 rounded-lg text-sm bg-surface-50 focus:border-gold-400 focus:ring-1 focus:ring-gold-400 outline-none transition-all"
+                      min={reportDateRange.start}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 gap-2 border-t border-surface-100 mt-2">
+                  <div className="flex gap-2">
+                    <button onClick={() => setReportDateRange({ start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10), end: new Date().toISOString().slice(0, 10) })} className="px-3 py-1.5 bg-surface-100 text-[11px] font-semibold text-text-secondary rounded-lg hover:bg-gold-50 hover:text-gold-700 transition-colors">Este Mês</button>
+                    <button onClick={() => { const today = new Date(); const m30 = new Date(); m30.setDate(today.getDate() - 30); setReportDateRange({ start: m30.toISOString().slice(0, 10), end: today.toISOString().slice(0, 10) }) }} className="px-3 py-1.5 bg-surface-100 text-[11px] font-semibold text-text-secondary rounded-lg hover:bg-gold-50 hover:text-gold-700 transition-colors">30 Dias</button>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 border border-surface-200 rounded-lg text-text-secondary text-[11px] font-bold hover:text-gold-600 hover:bg-gold-50 transition-colors shadow-sm" title="Baixar PDF">
+                      <Printer size={14} /> PDF
+                    </button>
+                    <button onClick={handleExportCSV} disabled={isGeneratingCSV || !reportData} className="flex items-center gap-1.5 px-3 py-1.5 border border-surface-200 bg-surface-800 text-white rounded-lg text-[11px] font-bold hover:bg-surface-700 transition-colors shadow-sm disabled:opacity-50" title="Exportar Planilha CSV">
+                      {isGeneratingCSV ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />} CSV
+                    </button>
+                  </div>
                 </div>
               </div>
-              <RoundedButton size="sm" onClick={handleExportCSV} disabled={isGeneratingCSV || !reportData}>
-                {isGeneratingCSV ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileSpreadsheet size={16} className="mr-2" />} Exportar Base (CSV)
-              </RoundedButton>
             </div>
 
             {reportLoading || !reportData ? (
@@ -488,7 +507,12 @@ export default function AdminPanel() {
             ) : (
               <>
                 {/* TOP NAVIGATION METRICS */}
-                <div className="grid grid-cols-4 gap-4">
+                <div className="hidden print:block text-center mt-4">
+                  <h2 className="text-xl font-bold">Relatório de Desempenho</h2>
+                  <p className="text-sm text-gray-500">{new Date(reportDateRange.start).toLocaleDateString('pt-BR')} a {new Date(reportDateRange.end).toLocaleDateString('pt-BR')}</p>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:grid-cols-4 print:gap-4 print:mt-4">
                   {[
                     { label: 'Total de Leads', value: reportData.resumo_geral.L, cmp: reportData.comparativo_mes_atual.crescimento_leads, icon: <Users size={18} />, color: 'text-surface-600', route: undefined },
                     { label: 'Total de Clientes', value: reportData.resumo_geral.C, cmp: null, icon: <Users size={18} />, color: 'text-gold-600', route: '/clients' },
@@ -512,7 +536,7 @@ export default function AdminPanel() {
                 </div>
 
                 {/* STRATEGIC DASHBOARD */}
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:grid-cols-4 print:gap-4">
                   <PremiumCard className="p-4 bg-gradient-to-br from-gold-50/50 to-white dark:from-gold-900/10 dark:to-surface-800 border-gold-100">
                     <p className="text-xs font-bold tracking-wider text-gold-600 mb-1 flex items-center gap-1.5"><Trophy size={14} /> VENDAS CONCLUÍDAS</p>
                     <p className="text-2xl font-black text-text-primary">{reportData.resumo_geral.V}</p>
@@ -559,7 +583,7 @@ export default function AdminPanel() {
                 </div>
 
                 {/* CHARTS LAYER */}
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-4 print:grid-cols-2 print:gap-6 print:break-inside-avoid">
                   <PremiumCard className="p-5">
                     <h4 className="font-bold text-text-primary mb-6 flex items-center gap-2"><BarChart3 size={18} className="text-gold-500" /> Distribuição de Pipeline (Clientes Ativos)</h4>
                     <div className="h-64 w-full">
@@ -701,10 +725,12 @@ export default function AdminPanel() {
   };
 
   return (
-    <div className="p-6 pb-24 min-h-screen bg-surface-50">
-      <SectionHeader title="Painel Administrativo" subtitle="Governança e Estratégia" />
+    <div className="p-6 pb-24 min-h-screen bg-surface-50 print:p-0 print:bg-white">
+      <div className="print:hidden">
+        <SectionHeader title="Painel Administrativo" subtitle="Governança e Estratégia" />
+      </div>
 
-      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-2">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-2 print:hidden">
         {[
           { id: 'users', label: 'Usuários', icon: Users },
           { id: 'teams', label: 'Equipes', icon: Shield },

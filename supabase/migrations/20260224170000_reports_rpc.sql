@@ -1,5 +1,28 @@
 -- Supabase RPC for Business Intelligence Reports (Kaizen-axis)
 
+CREATE OR REPLACE FUNCTION public.parse_currency(val text) RETURNS numeric
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+DECLARE
+    cleaned text;
+BEGIN
+    if val is null or val = '' then return 0; end if;
+    cleaned := trim(replace(replace(val, 'R$', ''), ' ', ''));
+    if cleaned = '' then return 0; end if;
+    
+    if cleaned like '%,%' then
+        cleaned := replace(cleaned, '.', '');
+        cleaned := replace(cleaned, ',', '.');
+    else
+        cleaned := replace(cleaned, '.', '');
+    end if;
+
+    RETURN COALESCE(NULLIF(regexp_replace(cleaned, '[^0-9\.-]', '', 'g'), ''), '0')::numeric;
+EXCEPTION WHEN OTHERS THEN
+    RETURN 0;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.get_report_metrics(data_inicial DATE, data_final DATE)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -92,7 +115,7 @@ BEGIN
     -- Assuming stage 'Venda Concluída' determines a sale, and 'updated_at' is the date of sale.
     SELECT 
         count(*), 
-        COALESCE(sum(sale_value), 0),
+        COALESCE(sum(public.parse_currency(intended_value)), 0),
         COALESCE(sum(DATE_PART('day', updated_at - created_at)), 0)
     INTO v_V, v_R, v_T
     FROM temp_clients 
@@ -131,7 +154,7 @@ BEGIN
     -- 5. Calculate Comparative Metrics (Current Month)
     
     SELECT count(*) INTO v_V_atual FROM temp_clients WHERE stage = 'Venda Concluída' AND updated_at::date >= v_periodo_atual_inicio AND updated_at::date <= v_periodo_atual_fim;
-    SELECT COALESCE(sum(sale_value), 0) INTO v_R_atual FROM temp_clients WHERE stage = 'Venda Concluída' AND updated_at::date >= v_periodo_atual_inicio AND updated_at::date <= v_periodo_atual_fim;
+    SELECT COALESCE(sum(public.parse_currency(intended_value)), 0) INTO v_R_atual FROM temp_clients WHERE stage = 'Venda Concluída' AND updated_at::date >= v_periodo_atual_inicio AND updated_at::date <= v_periodo_atual_fim;
     SELECT count(*) INTO v_L_atual FROM temp_leads WHERE created_at::date >= v_periodo_atual_inicio AND created_at::date <= v_periodo_atual_fim;
 
     -- Vendas Growth
@@ -188,7 +211,7 @@ BEGIN
     ), '[]'::jsonb)
     INTO v_performance_corretores
     FROM (
-        SELECT owner_id, count(*) as qtd_vendas, COALESCE(sum(sale_value), 0) as receita
+        SELECT owner_id, count(*) as qtd_vendas, COALESCE(sum(public.parse_currency(intended_value)), 0) as receita
         FROM temp_clients
         WHERE stage = 'Venda Concluída' AND updated_at::date >= data_inicial AND updated_at::date <= data_final
         GROUP BY owner_id
@@ -233,7 +256,7 @@ BEGIN
         GROUP BY date_trunc(v_group_type, created_at::timestamp)::date
     ) l ON l.periodo = t.periodo
     LEFT JOIN (
-        SELECT date_trunc(v_group_type, updated_at::timestamp)::date as periodo, count(*) as qtd_vendas, COALESCE(sum(sale_value), 0) as receita
+        SELECT date_trunc(v_group_type, updated_at::timestamp)::date as periodo, count(*) as qtd_vendas, COALESCE(sum(public.parse_currency(intended_value)), 0) as receita
         FROM temp_clients
         WHERE stage = 'Venda Concluída' AND updated_at::date >= data_inicial AND updated_at::date <= data_final
         GROUP BY date_trunc(v_group_type, updated_at::timestamp)::date
