@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { AnnouncementCard } from '@/components/admin/AnnouncementCard';
 import { useApp } from '@/context/AppContext';
 import { useAuthorization } from '@/hooks/useAuthorization';
+import { NotificationBell } from '@/components/ui/NotificationBell';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -54,6 +55,9 @@ export default function Dashboard() {
             {loading && <Loader2 className="animate-spin text-gold-500" size={18} />}
           </h1>
           <p className="text-text-secondary text-sm">{roleLabel[role] ?? 'Visão geral'}</p>
+        </div>
+        <div className="z-50 relative">
+          <NotificationBell />
         </div>
       </div>
 
