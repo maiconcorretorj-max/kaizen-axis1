@@ -118,14 +118,14 @@ export function PdfToolDrawer({ tool, isOpen, onClose }: PdfToolDrawerProps) {
 
     return (
         <>
-            {/* Backdrop */}
+            {/* Backdrop - underneath the drawer but above the bottom nav */}
             <div
-                className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                className="fixed inset-0 z-[55] bg-black/50 backdrop-blur-sm"
                 onClick={onClose}
             />
 
-            {/* Drawer Panel */}
-            <div className="fixed right-0 top-0 z-50 h-screen w-full md:w-[480px] bg-white dark:bg-[#111b21] shadow-2xl flex flex-col">
+            {/* Drawer Panel - above the bottom nav */}
+            <div className="fixed right-0 top-0 z-[60] h-[100dvh] w-full md:w-[480px] bg-white dark:bg-[#111b21] shadow-2xl flex flex-col">
                 {/* Header */}
                 <div className="flex-shrink-0 flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
                     <div className="flex items-center gap-3">

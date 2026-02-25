@@ -11,35 +11,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
-      VitePWA({
-        registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg', 'pwa-192x192.svg', 'pwa-512x512.svg'],
-        manifest: {
-          name: 'Kaizen Axis',
-          short_name: 'Kaizen Axis',
-          description: 'Gestão Inteligente Imobiliária',
-          theme_color: '#1E293B',
-          background_color: '#F8FAFC',
-          display: 'standalone',
-          icons: [
-            {
-              src: 'pwa-192x192.svg',
-              sizes: '192x192',
-              type: 'image/svg+xml',
-              purpose: 'any maskable'
-            },
-            {
-              src: 'pwa-512x512.svg',
-              sizes: '512x512',
-              type: 'image/svg+xml',
-              purpose: 'any maskable'
-            }
-          ],
-        },
-        workbox: {
-          maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB limit
-        },
-      })
+      // VitePWA disabled to prevent aggressive caching of app bundles
     ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),

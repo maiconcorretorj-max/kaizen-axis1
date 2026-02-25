@@ -5,6 +5,21 @@ import App from './App.tsx'
 import { AppProvider } from './context/AppContext.tsx'
 import { NotificationProvider } from './context/NotificationContext.tsx'
 
+// ⚠️ FORCE CLEAR: Unregister any PWA service workers and delete ALL caches
+// to ensure the browser always loads fresh JS from the server.
+(async () => {
+  if ('serviceWorker' in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    for (const reg of registrations) {
+      await reg.unregister();
+    }
+  }
+  if ('caches' in window) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+  }
+})();
+
 import { Component, ReactNode } from 'react';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
