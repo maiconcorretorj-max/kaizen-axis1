@@ -103,31 +103,19 @@ EXECUTE FUNCTION public.notify_lead_assignment();
 CREATE OR REPLACE FUNCTION public.notify_new_chat_message()
 RETURNS TRIGGER AS $$
 DECLARE
-    v_receiver_id UUID;
     v_sender_name TEXT;
 BEGIN
-    -- Only active on direct messages or group logic
-    -- Determine receiver from conversation participants (excluding sender)
-    -- Assuming a simple 1-to-1 logic for now based on conversation participants table or similar.
-    -- If chat_messages table has conversation_id, find the other participant:
-    
-    SELECT p.user_id INTO v_receiver_id
-    FROM public.chat_participants p
-    WHERE p.conversation_id = NEW.conversation_id AND p.user_id != NEW.sender_id
-    LIMIT 1;
+    IF NEW.receiver_id IS NOT NULL THEN
+        SELECT name INTO v_sender_name FROM public.profiles WHERE id = NEW.sender_id;
 
-    -- Get sender name
-    SELECT name INTO v_sender_name FROM public.profiles WHERE id = NEW.sender_id;
-
-    IF v_receiver_id IS NOT NULL THEN
         INSERT INTO public.notifications (
             title, message, type, target_user_id, reference_id, reference_route
         ) VALUES (
             'Nova Mensagem',
-            v_sender_name || ': ' || LEFT(NEW.content, 50) || CASE WHEN LENGTH(NEW.content) > 50 THEN '...' ELSE '' END,
+            COALESCE(v_sender_name, 'Alguém') || ': ' || LEFT(COALESCE(NEW.content, 'Arquivo/Mídia'), 50),
             'chat',
-            v_receiver_id,
-            NEW.conversation_id,
+            NEW.receiver_id,
+            NULL,
             '/chat'
         );
     END IF;
@@ -147,9 +135,7 @@ EXECUTE FUNCTION public.notify_new_chat_message();
 CREATE OR REPLACE FUNCTION public.notify_new_announcement()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Fan-out: Insert individual rows for everyone applicable so they can delete them individually
-    
-    IF NEW.target_audience = 'global' THEN
+    IF NEW.directorate_id IS NULL THEN
         INSERT INTO public.notifications (
             title, message, type, target_user_id, reference_id, reference_route
         )
@@ -162,7 +148,7 @@ BEGIN
             '/admin'
         FROM public.profiles WHERE status IN ('active', 'Ativo');
         
-    ELSIF NEW.target_audience = 'directorate' AND NEW.directorate_id IS NOT NULL THEN
+    ELSE
         INSERT INTO public.notifications (
             title, message, type, target_user_id, reference_id, reference_route
         )
@@ -174,19 +160,6 @@ BEGIN
             NEW.id,
             '/admin'
         FROM public.profiles WHERE directorate_id = NEW.directorate_id AND status IN ('active', 'Ativo');
-        
-    ELSIF NEW.target_audience = 'team' AND NEW.team_id IS NOT NULL THEN
-        INSERT INTO public.notifications (
-            title, message, type, target_user_id, reference_id, reference_route
-        )
-        SELECT 
-            'Novo Aviso da Equipe: ' || NEW.title,
-            LEFT(NEW.content, 100) || '...',
-            'aviso',
-            id,
-            NEW.id,
-            '/admin'
-        FROM public.profiles WHERE team_id = NEW.team_id AND status IN ('active', 'Ativo');
     END IF;
 
     RETURN NEW;
@@ -204,54 +177,53 @@ EXECUTE FUNCTION public.notify_new_announcement();
 CREATE OR REPLACE FUNCTION public.notify_new_goal()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.target_type = 'global' THEN
+    IF NEW.assignee_type = 'global' THEN
         INSERT INTO public.notifications (
             title, message, type, target_user_id, reference_id, reference_route
         )
         SELECT 
             'Nova ' || NEW.type || ' Global: ' || NEW.title,
-            'Objetivo: ' || NEW.target_value,
+            'Objetivo: ' || COALESCE(NEW.target::text, ''),
             'meta',
             id,
             NEW.id,
-            '/admin' -- or wherever goals are displayed to users
+            '/admin'
         FROM public.profiles WHERE status IN ('active', 'Ativo');
         
-    ELSIF NEW.target_type = 'directorate' AND NEW.target_id IS NOT NULL THEN
+    ELSIF NEW.assignee_type = 'directorate' AND NEW.assignee_id IS NOT NULL THEN
         INSERT INTO public.notifications (
             title, message, type, target_user_id, reference_id, reference_route
         )
         SELECT 
             'Nova ' || NEW.type || ' para Diretoria: ' || NEW.title,
-            'Objetivo: ' || NEW.target_value,
+            'Objetivo: ' || COALESCE(NEW.target::text, ''),
             'meta',
             id,
             NEW.id,
             '/admin'
-        FROM public.profiles WHERE directorate_id = NEW.target_id AND status IN ('active', 'Ativo');
+        FROM public.profiles WHERE directorate_id = NEW.assignee_id AND status IN ('active', 'Ativo');
         
-    ELSIF NEW.target_type = 'team' AND NEW.target_id IS NOT NULL THEN
-        -- Notify team members and their managers
+    ELSIF NEW.assignee_type = 'team' AND NEW.assignee_id IS NOT NULL THEN
         INSERT INTO public.notifications (
             title, message, type, target_user_id, reference_id, reference_route
         )
         SELECT 
             'Nova ' || NEW.type || ' para Equipe: ' || NEW.title,
-            'Objetivo: ' || NEW.target_value,
+            'Objetivo: ' || COALESCE(NEW.target::text, ''),
             'meta',
             id,
             NEW.id,
             '/admin'
-        FROM public.profiles WHERE team_id = NEW.target_id AND status IN ('active', 'Ativo');
+        FROM public.profiles WHERE team_id = NEW.assignee_id AND status IN ('active', 'Ativo');
         
-    ELSIF NEW.target_type = 'individual' AND NEW.target_id IS NOT NULL THEN
+    ELSIF NEW.assignee_type = 'individual' AND NEW.assignee_id IS NOT NULL THEN
         INSERT INTO public.notifications (
             title, message, type, target_user_id, reference_id, reference_route
         ) VALUES (
             'Nova ' || NEW.type || ' Atribuída a Você: ' || NEW.title,
-            'Objetivo: ' || NEW.target_value,
+            'Objetivo: ' || COALESCE(NEW.target::text, ''),
             'meta',
-            NEW.target_id,
+            NEW.assignee_id,
             NEW.id,
             '/admin'
         );
