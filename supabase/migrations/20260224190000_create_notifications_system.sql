@@ -116,7 +116,7 @@ BEGIN
             'chat',
             NEW.receiver_id,
             NULL,
-            '/chat'
+            '/chat/' || NEW.conversation_id
         );
     END IF;
     

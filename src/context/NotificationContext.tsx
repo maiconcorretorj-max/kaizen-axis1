@@ -76,10 +76,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                     event: '*',
                     schema: 'public',
                     table: 'notifications',
-                    // Note: Row Level Security will not filter the stream payload unless we use Database functions or check target client-side.
-                    // Since postgres_changes filters by RLS *only* if configured correctly with JWT, it's safer to filter here.
-                    // With RLS + Realtime, Supabase requires you to pass the JWT on setup. We assume it passes correctly but
-                    // we do a secondary sanity check on the payload just in case it leaks.
                 },
                 (payload) => {
                     if (!isMounted) return;
@@ -87,12 +83,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                     if (payload.eventType === 'INSERT') {
                         const newNotif = payload.new as Notification;
 
-                        // Client-side verification to respect fan-out logic just in case
-                        if (newNotif.target_user_id === profile.id ||
-                            newNotif.target_role === profile.role ||
-                            (newNotif.directorate_id && newNotif.directorate_id === profile.directorate_id) ||
-                            profile.role === 'ADMIN') {
-                            setNotifications((prev) => [newNotif, ...prev]);
+                        // Client-side verification is strictly required here because Supabase Realtime
+                        // might drop payloads if RLS involves complex joins (like checking profiles table for role).
+                        const isForMe = newNotif.target_user_id === profile.id;
+                        const isForMyRole = newNotif.target_role === profile.role;
+                        const isForMyDirectorate = Boolean(newNotif.directorate_id && newNotif.directorate_id === profile.directorate_id);
+                        const isAdmin = profile.role === 'ADMIN';
+
+                        if (isForMe || isForMyRole || isForMyDirectorate || isAdmin) {
+                            setNotifications((prev) => {
+                                // Prevent duplicates just in case
+                                if (prev.some(n => n.id === newNotif.id)) return prev;
+                                return [newNotif, ...prev];
+                            });
                         }
                     } else if (payload.eventType === 'UPDATE') {
                         const updatedNotif = payload.new as Notification;
