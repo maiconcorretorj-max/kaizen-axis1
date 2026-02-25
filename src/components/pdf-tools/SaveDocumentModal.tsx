@@ -59,16 +59,26 @@ export function SaveDocumentModal({ isOpen, onClose, fileBlob, fileName }: SaveD
             const ext = fileName.split('.').pop() || 'pdf';
             const storagePath = `${selectedClient.id}/${Date.now()}.${ext}`;
 
-            // Upload file to storage
-            const { error: uploadError } = await supabase.storage
+            // Convert Blob to File (Supabase storage fetch sometimes hangs on raw Blobs from pdf-lib)
+            const fileObj = new File([fileBlob], fileName, { type: fileBlob.type || 'application/pdf' });
+
+            // Wrap upload in a timeout to guarantee it never hangs the UI forever
+            const uploadPromise = supabase.storage
                 .from('client-documents')
-                .upload(storagePath, fileBlob, {
-                    contentType: fileBlob.type || 'application/pdf',
-                    upsert: true
+                .upload(storagePath, fileObj, {
+                    contentType: fileObj.type,
+                    upsert: false // changed to false to avoid UPDATE policy permission issues
                 });
 
+            const timeoutPromise = new Promise<{ data: any, error: any }>((_, reject) => {
+                setTimeout(() => reject(new Error('Tempo limite de upload excedido (Timeout).')), 15000);
+            });
+
+            // Upload file to storage with timeout race
+            const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]);
+
             if (uploadError) {
-                throw new Error(`Upload: ${uploadError.message}`);
+                throw new Error(`Erro no Upload: ${uploadError.message || uploadError}`);
             }
 
             // Get public URL
@@ -88,14 +98,14 @@ export function SaveDocumentModal({ isOpen, onClose, fileBlob, fileName }: SaveD
                 });
 
             if (dbError) {
-                throw new Error(`DB: ${dbError.message}`);
+                throw new Error(`Erro no Banco: ${dbError.message}`);
             }
 
             setSaveStatus('success');
             setTimeout(() => onClose(), 1500);
         } catch (err: any) {
             console.error('Save error:', err);
-            setErrorMsg(err.message || 'Erro desconhecido');
+            setErrorMsg(err.message || 'Erro ao conectar com o servidor.');
             setSaveStatus('error');
         } finally {
             setIsSaving(false);
