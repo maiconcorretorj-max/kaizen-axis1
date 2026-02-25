@@ -17,7 +17,5 @@ self.addEventListener('activate', (e) => {
     );
 });
 
-self.addEventListener('fetch', (e) => {
-    // Pass through all requests to network
-    e.respondWith(fetch(e.request));
-});
+// No fetch listener. We want the browser to handle all requests natively
+// to avoid stalling file uploads (POSTs with stream bodies).
