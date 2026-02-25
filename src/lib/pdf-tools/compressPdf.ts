@@ -2,6 +2,9 @@ import { PDFDocument } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import { jsPDF } from 'jspdf';
 
+// Setup worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
 /**
  * Compresses a PDF by rendering its pages to images and creating a new PDF.
  * Note: Real structural PDF compression is not possible natively in the browser without WebAssembly (like Ghostscript).

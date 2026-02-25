@@ -139,7 +139,7 @@ export function PdfToolDrawer({ tool, isOpen, onClose }: PdfToolDrawerProps) {
                     animate={{ x: 0 }}
                     exit={{ x: '100%' }}
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                    className="w-full md:w-1/2 lg:w-1/3 h-full bg-white dark:bg-[#111b21] shadow-2xl flex flex-col"
+                    className="w-full md:w-1/2 lg:w-1/3 h-[100dvh] bg-white dark:bg-[#111b21] shadow-2xl flex flex-col"
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
@@ -158,7 +158,7 @@ export function PdfToolDrawer({ tool, isOpen, onClose }: PdfToolDrawerProps) {
                     </div>
 
                     {/* Body */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
                         {!success ? (
                             <>
                                 <PdfDropzone

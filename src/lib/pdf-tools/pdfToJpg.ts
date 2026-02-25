@@ -1,6 +1,9 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import JSZip from 'jszip';
 
+// Setup worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
 /**
  * Extracts each page of a PDF as a high-quality JPG image and packs them into a ZIP file.
  */
