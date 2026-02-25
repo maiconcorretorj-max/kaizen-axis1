@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { PremiumCard, SectionHeader } from '@/components/ui/PremiumComponents';
-import { Bell, Loader2, Users, TrendingUp, Target, Calendar, Building2 } from 'lucide-react';
+import { Loader2, Users, TrendingUp, Target, Calendar, Building2 } from 'lucide-react';
 import { FunnelChart } from '@/components/ui/FunnelChart';
-import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { useNavigate } from 'react-router-dom';
 
 import { AnnouncementCard } from '@/components/admin/AnnouncementCard';
@@ -11,7 +9,6 @@ import { useAuthorization } from '@/hooks/useAuthorization';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const { clients, appointments, goals, announcements, userName, loading, directorates, allProfiles, profile, user } = useApp();
   const { isAdmin, isDirector, isManager, isCoordinator, isBroker, directorateId, role } = useAuthorization();
 
@@ -58,16 +55,7 @@ export default function Dashboard() {
           </h1>
           <p className="text-text-secondary text-sm">{roleLabel[role] ?? 'Visão geral'}</p>
         </div>
-        <button
-          onClick={() => setIsNotificationsOpen(true)}
-          className="p-2 rounded-full bg-card-bg border border-surface-200 text-text-secondary relative hover:bg-surface-100 transition-colors"
-        >
-          <Bell size={20} />
-          <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-card-bg" />
-        </button>
       </div>
-
-      <NotificationsPanel isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
 
       {/* Announcements */}
       {activeAnnouncements.length > 0 && (

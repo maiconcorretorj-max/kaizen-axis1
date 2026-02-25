@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PremiumCard, StatusBadge, RoundedButton } from '@/components/ui/PremiumComponents';
 import {
   Search, Filter, Phone, Mail, MessageCircle, UserPlus,
-  Clock, Plus, Loader2, Zap, Brain, AlertTriangle, CheckCircle2
+  Clock, Plus, Loader2, Zap, Brain, AlertTriangle, CheckCircle2,
+  Sparkles, X, BadgeCheck
 } from 'lucide-react';
 import { CLIENT_STAGES, ClientStage } from '@/data/clients';
 import { AutomationLead } from '@/data/leads';

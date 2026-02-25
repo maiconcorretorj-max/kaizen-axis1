@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { AppProvider } from './context/AppContext.tsx'
+import { NotificationProvider } from './context/NotificationContext.tsx'
 
 import { Component, ReactNode } from 'react';
 
@@ -35,7 +36,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <AppProvider>
-        <App />
+        <NotificationProvider>
+          <App />
+        </NotificationProvider>
       </AppProvider>
     </ErrorBoundary>
   </StrictMode>,

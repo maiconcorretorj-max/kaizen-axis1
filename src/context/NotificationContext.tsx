@@ -1,0 +1,169 @@
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useApp } from './AppContext';
+
+export interface Notification {
+    id: string;
+    title: string;
+    message: string;
+    type: string;
+    target_user_id: string | null;
+    target_role: string | null;
+    directorate_id: string | null;
+    reference_id: string | null;
+    reference_route: string | null;
+    is_read: boolean;
+    created_at: string;
+}
+
+interface NotificationContextType {
+    notifications: Notification[];
+    unreadCount: number;
+    markAsRead: (id: string) => Promise<void>;
+    markAllAsRead: () => Promise<void>;
+    deleteNotification: (id: string) => Promise<void>;
+    loading: boolean;
+}
+
+const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+
+export function NotificationProvider({ children }: { children: React.ReactNode }) {
+    const { profile, loading: appLoading } = useApp();
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+    useEffect(() => {
+        // Only initialized if we have a valid auth profile
+        if (appLoading || !profile?.id) {
+            setNotifications([]);
+            setLoading(false);
+            return;
+        }
+
+        let isMounted = true;
+
+        const fetchNotifications = async () => {
+            setLoading(true);
+            try {
+                const { data, error } = await supabase
+                    .from('notifications')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(50); // Get latest 50 to avoid bloat
+
+                if (error) throw error;
+
+                if (isMounted) {
+                    setNotifications(data as Notification[]);
+                }
+            } catch (error) {
+                console.error('Error fetching notifications:', error);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+
+        fetchNotifications();
+
+        // Subscribe to realtime changes
+        const subscription = supabase
+            .channel('public:notifications')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'notifications',
+                    // Note: Row Level Security will not filter the stream payload unless we use Database functions or check target client-side.
+                    // Since postgres_changes filters by RLS *only* if configured correctly with JWT, it's safer to filter here.
+                    // With RLS + Realtime, Supabase requires you to pass the JWT on setup. We assume it passes correctly but
+                    // we do a secondary sanity check on the payload just in case it leaks.
+                },
+                (payload) => {
+                    if (!isMounted) return;
+
+                    if (payload.eventType === 'INSERT') {
+                        const newNotif = payload.new as Notification;
+
+                        // Client-side verification to respect fan-out logic just in case
+                        if (newNotif.target_user_id === profile.id ||
+                            newNotif.target_role === profile.role ||
+                            (newNotif.directorate_id && newNotif.directorate_id === profile.directorate_id) ||
+                            profile.role === 'ADMIN') {
+                            setNotifications((prev) => [newNotif, ...prev]);
+                        }
+                    } else if (payload.eventType === 'UPDATE') {
+                        const updatedNotif = payload.new as Notification;
+                        setNotifications((prev) =>
+                            prev.map((n) => (n.id === updatedNotif.id ? updatedNotif : n))
+                        );
+                    } else if (payload.eventType === 'DELETE') {
+                        setNotifications((prev) => prev.filter((n) => n.id !== payload.old.id));
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            isMounted = false;
+            supabase.removeChannel(subscription);
+        };
+    }, [profile?.id, profile?.role, profile?.directorate_id, appLoading]);
+
+    const markAsRead = async (id: string) => {
+        try {
+            // Optimistic UI update
+            setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
+            const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+            if (error) throw error;
+        } catch (error) {
+            console.error('Error marking as read:', error);
+            // Rollback optimism could be implemented here
+        }
+    };
+
+    const markAllAsRead = async () => {
+        if (!profile?.id) return;
+        try {
+            const idsToMark = notifications.filter(n => !n.is_read).map(n => n.id);
+            if (idsToMark.length === 0) return;
+
+            setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+
+            const { error } = await supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .in('id', idsToMark);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Error marking all as read:', error);
+        }
+    };
+
+    const deleteNotification = async (id: string) => {
+        try {
+            setNotifications((prev) => prev.filter((n) => n.id !== id));
+            const { error } = await supabase.from('notifications').delete().eq('id', id);
+            if (error) throw error;
+        } catch (error) {
+            console.error('Error deleting notification:', error);
+        }
+    };
+
+    return (
+        <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, loading }}>
+            {children}
+        </NotificationContext.Provider>
+    );
+}
+
+export const useNotifications = () => {
+    const context = useContext(NotificationContext);
+    if (context === undefined) {
+        throw new Error('useNotifications must be used within a NotificationProvider');
+    }
+    return context;
+};
