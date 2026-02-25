@@ -1,8 +1,10 @@
 import * as pdfjsLib from 'pdfjs-dist';
+// @ts-ignore
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import JSZip from 'jszip';
 
 // Setup worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 /**
  * Extracts each page of a PDF as a high-quality JPG image and packs them into a ZIP file.
@@ -24,6 +26,7 @@ export async function pdfToJpg(file: File): Promise<Blob> {
         canvas.width = viewport.width;
         canvas.height = viewport.height;
 
+        // @ts-ignore - The types for pdfjs-dist RenderParameters can be very strict
         await page.render({ canvasContext: ctx, viewport }).promise;
 
         // Get the base64 string

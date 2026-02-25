@@ -1,9 +1,11 @@
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
+// @ts-ignore
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { jsPDF } from 'jspdf';
 
 // Setup worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 /**
  * Compresses a PDF by rendering its pages to images and creating a new PDF.
@@ -40,6 +42,7 @@ export async function compressPdf(file: File, quality: number = 0.5): Promise<Bl
         canvas.width = viewport.width;
         canvas.height = viewport.height;
 
+        // @ts-ignore - The types for pdfjs-dist RenderParameters can be very strict
         await page.render({ canvasContext: ctx, viewport }).promise;
 
         // Convert to JPEG with quality
