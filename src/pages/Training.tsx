@@ -50,7 +50,7 @@ const INITIAL_TRAININGS: TrainingItem[] = [
 ];
 
 export default function Training() {
-  const { isBroker } = useAuthorization();
+  const { isBroker, canCreateStrategicResources } = useAuthorization();
   const [trainings, setTrainings] = useState<TrainingItem[]>(INITIAL_TRAININGS);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewingItem, setViewingItem] = useState<TrainingItem | null>(null);
@@ -95,7 +95,7 @@ export default function Training() {
     <div className="p-6 pb-24 min-h-screen bg-surface-50">
       <div className="flex justify-between items-start mb-4">
         <SectionHeader title="Treinamentos" subtitle="Universidade Corporativa" />
-        {!isBroker && (
+        {canCreateStrategicResources && (
           <RoundedButton size="sm" onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-1 mt-2">
             <Plus size={16} /> Novo
           </RoundedButton>
@@ -165,8 +165,8 @@ export default function Training() {
                   key={type}
                   onClick={() => setFormData(prev => ({ ...prev, type: type as any }))}
                   className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${formData.type === type
-                      ? 'bg-gold-50 border-gold-400 text-gold-700 dark:bg-gold-900/20 dark:text-gold-400'
-                      : 'bg-surface-50 border-surface-200 text-text-secondary'
+                    ? 'bg-gold-50 border-gold-400 text-gold-700 dark:bg-gold-900/20 dark:text-gold-400'
+                    : 'bg-surface-50 border-surface-200 text-text-secondary'
                     }`}
                 >
                   {type}

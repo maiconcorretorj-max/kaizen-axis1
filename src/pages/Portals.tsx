@@ -44,7 +44,7 @@ const INITIAL_PORTALS: Portal[] = [
 ];
 
 export default function Portals() {
-  const { isBroker } = useAuthorization();
+  const { isBroker, canCreateStrategicResources } = useAuthorization();
   const [portals, setPortals] = useState<Portal[]>(INITIAL_PORTALS);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -119,7 +119,7 @@ export default function Portals() {
     <div className="p-6 pb-24 min-h-screen bg-surface-50">
       <div className="flex justify-between items-start mb-4">
         <SectionHeader title="Portais" subtitle="Acesso rápido" />
-        {!isBroker && (
+        {canCreateStrategicResources && (
           <RoundedButton size="sm" onClick={() => handleOpenModal()} className="flex items-center gap-1 mt-2">
             <Plus size={16} /> Novo
           </RoundedButton>
@@ -152,7 +152,7 @@ export default function Portals() {
               <p className="text-xs text-text-secondary truncate">{portal.description || portal.url}</p>
             </div>
 
-            {!isBroker && (
+            {canCreateStrategicResources && (
               <div className="flex gap-2">
                 <button
                   onClick={() => handleOpenModal(portal)}
