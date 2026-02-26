@@ -98,6 +98,29 @@ export interface Goal {
   points?: number;
 }
 
+export interface Portal {
+  id: string;
+  name: string;
+  url: string;
+  category: 'Banco' | 'Construtora' | 'Outro';
+  description?: string;
+  created_by?: string;
+  created_at?: string;
+}
+
+export interface TrainingItem {
+  id: string;
+  title: string;
+  type: 'Vídeo' | 'PDF' | 'Imagem';
+  url: string;
+  thumbnail?: string;
+  duration?: string;
+  description?: string;
+  progress?: number;
+  created_by?: string;
+  created_at?: string;
+}
+
 export interface Announcement {
   id: string;
   author_id?: string;
@@ -189,6 +212,20 @@ interface AppContextValue {
   addDirectorate: (data: Omit<Directorate, 'id' | 'created_at'>) => Promise<void>;
   updateDirectorate: (id: string, data: Partial<Directorate>) => Promise<void>;
   deleteDirectorate: (id: string) => Promise<void>;
+
+  // Portals
+  portals: Portal[];
+  refreshPortals: () => Promise<void>;
+  addPortal: (data: Omit<Portal, 'id' | 'created_at'>) => Promise<void>;
+  updatePortal: (id: string, data: Partial<Portal>) => Promise<void>;
+  deletePortal: (id: string) => Promise<void>;
+
+  // Trainings
+  trainings: TrainingItem[];
+  refreshTrainings: () => Promise<void>;
+  addTraining: (data: Omit<TrainingItem, 'id' | 'created_at'>) => Promise<void>;
+  updateTraining: (id: string, data: Partial<TrainingItem>) => Promise<void>;
+  deleteTraining: (id: string) => Promise<void>;
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -211,6 +248,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [directorates, setDirectorates] = useState<Directorate[]>([]);
+  const [portals, setPortals] = useState<Portal[]>([]);
+  const [trainings, setTrainings] = useState<TrainingItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Refs para evitar loop infinito: refreshLeads lê esses valores sem depender deles
@@ -742,12 +781,82 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { console.error('Erro ao deletar diretoria:', e); }
   }, [refreshDirectorates]);
 
+  // ─── Portals ──────────────────────────────────────────────────────────────
+
+  const refreshPortals = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('portals').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setPortals(data || []);
+    } catch (e) { console.error('Erro ao buscar portais:', e); }
+  }, []);
+
+  const addPortal = useCallback(async (data: Omit<Portal, 'id' | 'created_at'>) => {
+    try {
+      const { error } = await supabase.from('portals').insert([{ ...data, created_by: user?.id }]);
+      if (error) throw error;
+      await refreshPortals();
+    } catch (e) { console.error('Erro ao criar portal:', e); }
+  }, [refreshPortals, user]);
+
+  const updatePortal = useCallback(async (id: string, data: Partial<Portal>) => {
+    try {
+      const { error } = await supabase.from('portals').update(data).eq('id', id);
+      if (error) throw error;
+      await refreshPortals();
+    } catch (e) { console.error('Erro ao atualizar portal:', e); }
+  }, [refreshPortals]);
+
+  const deletePortal = useCallback(async (id: string) => {
+    try {
+      const { error } = await supabase.from('portals').delete().eq('id', id);
+      if (error) throw error;
+      await refreshPortals();
+    } catch (e) { console.error('Erro ao deletar portal:', e); }
+  }, [refreshPortals]);
+
+  // ─── Trainings ────────────────────────────────────────────────────────────
+
+  const refreshTrainings = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('trainings').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setTrainings(data || []);
+    } catch (e) { console.error('Erro ao buscar treinamentos:', e); }
+  }, []);
+
+  const addTraining = useCallback(async (data: Omit<TrainingItem, 'id' | 'created_at'>) => {
+    try {
+      const { error } = await supabase.from('trainings').insert([{ ...data, created_by: user?.id }]);
+      if (error) throw error;
+      await refreshTrainings();
+    } catch (e) { console.error('Erro ao criar treinamento:', e); }
+  }, [refreshTrainings, user]);
+
+  const updateTraining = useCallback(async (id: string, data: Partial<TrainingItem>) => {
+    try {
+      const { error } = await supabase.from('trainings').update(data).eq('id', id);
+      if (error) throw error;
+      await refreshTrainings();
+    } catch (e) { console.error('Erro ao atualizar treinamento:', e); }
+  }, [refreshTrainings]);
+
+  const deleteTraining = useCallback(async (id: string) => {
+    try {
+      const { error } = await supabase.from('trainings').delete().eq('id', id);
+      if (error) throw error;
+      await refreshTrainings();
+    } catch (e) { console.error('Erro ao deletar treinamento:', e); }
+  }, [refreshTrainings]);
+
   // ─── Init ─────────────────────────────────────────────────────────────────
 
   const loadAllData = useCallback(async () => {
     await Promise.all([
       refreshClients(),
       refreshLeads(),
+      refreshPortals(),
+      refreshTrainings(),
       refreshAppointments(),
       refreshTasks(),
       refreshDevelopments(),
@@ -816,7 +925,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       teams, refreshTeams, addTeam, updateTeam, deleteTeam,
       goals, refreshGoals, addGoal, updateGoal, deleteGoal,
       announcements, refreshAnnouncements, addAnnouncement, updateAnnouncement, deleteAnnouncement,
-      directorates, refreshDirectorates, addDirectorate, updateDirectorate, deleteDirectorate,
+      directorates, refreshDirectorates,
+      addDirectorate,
+      updateDirectorate,
+      deleteDirectorate,
+      portals,
+      refreshPortals,
+      addPortal,
+      updatePortal,
+      deletePortal,
+      trainings,
+      refreshTrainings,
+      addTraining,
+      updateTraining,
+      deleteTraining,
     }}>
       {children}
     </AppContext.Provider>

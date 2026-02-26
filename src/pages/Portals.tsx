@@ -3,49 +3,11 @@ import { PremiumCard, SectionHeader, RoundedButton } from '@/components/ui/Premi
 import { Globe, Plus, Edit2, Trash2, ExternalLink, Search, Building2, Landmark } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useAuthorization } from '@/hooks/useAuthorization';
-
-interface Portal {
-  id: string;
-  name: string;
-  url: string;
-  category: 'Banco' | 'Construtora' | 'Outro';
-  description?: string;
-}
-
-const INITIAL_PORTALS: Portal[] = [
-  {
-    id: '1',
-    name: 'Portal Caixa',
-    url: 'https://www.caixa.gov.br',
-    category: 'Banco',
-    description: 'Acesso ao sistema habitacional da Caixa'
-  },
-  {
-    id: '2',
-    name: 'Sicaq',
-    url: 'https://www.caixa.gov.br/site/paginas/downloads.aspx',
-    category: 'Banco',
-    description: 'Sistema de Cadastro'
-  },
-  {
-    id: '3',
-    name: 'Moura Dubeux',
-    url: 'https://mouradubeux.com.br',
-    category: 'Construtora',
-    description: 'Portal do Corretor'
-  },
-  {
-    id: '4',
-    name: 'MRV',
-    url: 'https://www.mrv.com.br',
-    category: 'Construtora',
-    description: 'Vendas Online'
-  }
-];
+import { useApp, Portal } from '@/context/AppContext';
 
 export default function Portals() {
   const { isBroker, canCreateStrategicResources } = useAuthorization();
-  const [portals, setPortals] = useState<Portal[]>(INITIAL_PORTALS);
+  const { portals, addPortal, updatePortal, deletePortal } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPortal, setEditingPortal] = useState<Portal | null>(null);
@@ -77,33 +39,25 @@ export default function Portals() {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.url) return;
 
-    // Ensure URL has protocol
     let url = formData.url;
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = `https://${url}`;
     }
 
     if (editingPortal) {
-      setPortals(prev => prev.map(p =>
-        p.id === editingPortal.id ? { ...p, ...formData, url } as Portal : p
-      ));
+      await updatePortal(editingPortal.id, { ...formData, url });
     } else {
-      const newPortal: Portal = {
-        id: Date.now().toString(),
-        ...formData as Portal,
-        url
-      };
-      setPortals(prev => [...prev, newPortal]);
+      await addPortal({ ...formData, url } as Omit<Portal, 'id' | 'created_at'>);
     }
     setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Tem certeza que deseja excluir este portal?')) {
-      setPortals(prev => prev.filter(p => p.id !== id));
+      await deletePortal(id);
     }
   };
 

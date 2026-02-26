@@ -1,59 +1,17 @@
 import { useState } from 'react';
 import { PremiumCard, SectionHeader, RoundedButton } from '@/components/ui/PremiumComponents';
-import { PlayCircle, FileText, Image as ImageIcon, Plus, X, ExternalLink } from 'lucide-react';
+import { PlayCircle, FileText, Image as ImageIcon, Plus, X, ExternalLink, Edit2, Trash2 } from 'lucide-react';
 import { FAB } from '@/components/Layout';
 import { Modal } from '@/components/ui/Modal';
 import { useAuthorization } from '@/hooks/useAuthorization';
-
-interface TrainingItem {
-  id: string;
-  title: string;
-  type: 'Vídeo' | 'PDF' | 'Imagem';
-  url: string;
-  thumbnail?: string;
-  duration?: string;
-  description?: string;
-  progress: number; // 0-100
-}
-
-const INITIAL_TRAININGS: TrainingItem[] = [
-  {
-    id: '1',
-    title: 'Técnicas de Negociação Avançada',
-    type: 'Vídeo',
-    url: 'https://www.youtube.com/embed/dQw4w9WgXcQ', // Placeholder video
-    thumbnail: 'https://picsum.photos/seed/neg/400/300',
-    duration: '45 min',
-    description: 'Aprenda as melhores estratégias para fechar grandes negócios.',
-    progress: 75,
-  },
-  {
-    id: '2',
-    title: 'Novo Processo de Financiamento',
-    type: 'PDF',
-    url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    thumbnail: 'https://picsum.photos/seed/fin/400/300',
-    duration: '15 pág',
-    description: 'Guia completo sobre as novas regras de financiamento imobiliário.',
-    progress: 0,
-  },
-  {
-    id: '3',
-    title: 'Postura e Ética Profissional',
-    type: 'Imagem',
-    url: 'https://picsum.photos/seed/etic_full/800/600',
-    thumbnail: 'https://picsum.photos/seed/etic/400/300',
-    duration: 'Visualização',
-    description: 'Infográfico sobre conduta ética no ambiente de trabalho.',
-    progress: 100,
-  }
-];
+import { useApp, TrainingItem } from '@/context/AppContext';
 
 export default function Training() {
   const { isBroker, canCreateStrategicResources } = useAuthorization();
-  const [trainings, setTrainings] = useState<TrainingItem[]>(INITIAL_TRAININGS);
+  const { trainings, addTraining, updateTraining, deleteTraining } = useApp();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewingItem, setViewingItem] = useState<TrainingItem | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Partial<TrainingItem>>({
     title: '',
@@ -63,23 +21,49 @@ export default function Training() {
     description: ''
   });
 
-  const handleAddTraining = () => {
+  const handleOpenModal = (item?: TrainingItem) => {
+    if (item) {
+      setEditingItemId(item.id);
+      setFormData({
+        title: item.title,
+        type: item.type,
+        url: item.url,
+        duration: item.duration,
+        description: item.description,
+      });
+    } else {
+      setEditingItemId(null);
+      setFormData({ title: '', type: 'Vídeo', url: '', duration: '', description: '' });
+    }
+    setIsAddModalOpen(true);
+  };
+
+  const handleSave = async () => {
     if (!formData.title || !formData.url) return;
 
-    const newItem: TrainingItem = {
-      id: Date.now().toString(),
-      title: formData.title,
-      type: formData.type as 'Vídeo' | 'PDF' | 'Imagem',
-      url: formData.url,
-      duration: formData.duration || 'N/A',
-      description: formData.description || '',
-      progress: 0,
-      thumbnail: `https://picsum.photos/seed/${Date.now()}/400/300` // Random thumbnail
-    };
+    if (editingItemId) {
+      await updateTraining(editingItemId, formData);
+    } else {
+      const newItem = {
+        title: formData.title,
+        type: formData.type as 'Vídeo' | 'PDF' | 'Imagem',
+        url: formData.url,
+        duration: formData.duration || 'N/A',
+        description: formData.description || '',
+        thumbnail: `https://picsum.photos/seed/${Date.now()}/400/300` // Random thumbnail
+      };
+      await addTraining(newItem);
+    }
 
-    setTrainings(prev => [...prev, newItem]);
     setIsAddModalOpen(false);
     setFormData({ title: '', type: 'Vídeo', url: '', duration: '', description: '' });
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Tem certeza que deseja excluir este treinamento?')) {
+      await deleteTraining(id);
+    }
   };
 
   const getIcon = (type: string) => {
@@ -96,7 +80,7 @@ export default function Training() {
       <div className="flex justify-between items-start mb-4">
         <SectionHeader title="Treinamentos" subtitle="Universidade Corporativa" />
         {canCreateStrategicResources && (
-          <RoundedButton size="sm" onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-1 mt-2">
+          <RoundedButton size="sm" onClick={() => handleOpenModal()} className="flex items-center gap-1 mt-2">
             <Plus size={16} /> Novo
           </RoundedButton>
         )}
@@ -106,9 +90,26 @@ export default function Training() {
         {trainings.map((item) => (
           <PremiumCard
             key={item.id}
-            className="p-4 flex gap-4 cursor-pointer hover:bg-surface-100 transition-colors"
+            className="p-4 flex gap-4 cursor-pointer hover:bg-surface-100 transition-colors relative group"
             onClick={() => setViewingItem(item)}
           >
+            {canCreateStrategicResources && (
+              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }}
+                  className="p-2 bg-white/90 dark:bg-black/80 text-text-secondary hover:text-gold-600 rounded-lg backdrop-blur-sm shadow-sm transition-colors"
+                >
+                  <Edit2 size={16} />
+                </button>
+                <button
+                  onClick={(e) => handleDelete(item.id, e)}
+                  className="p-2 bg-white/90 dark:bg-black/80 text-text-secondary hover:text-red-500 rounded-lg backdrop-blur-sm shadow-sm transition-colors"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            )}
+
             <div className="relative w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-black">
               <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover opacity-80" referrerPolicy="no-referrer" />
               <div className="absolute inset-0 flex items-center justify-center">
@@ -144,7 +145,7 @@ export default function Training() {
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        title="Adicionar Treinamento"
+        title={editingItemId ? "Editar Treinamento" : "Adicionar Treinamento"}
       >
         <div className="space-y-4">
           <div>
@@ -205,8 +206,8 @@ export default function Training() {
             />
           </div>
 
-          <RoundedButton fullWidth onClick={handleAddTraining} className="mt-4">
-            Adicionar
+          <RoundedButton fullWidth onClick={handleSave} className="mt-4">
+            {editingItemId ? 'Atualizar' : 'Adicionar'}
           </RoundedButton>
         </div>
       </Modal>

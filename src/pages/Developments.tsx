@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PremiumCard, StatusBadge, SectionHeader, RoundedButton } from '@/components/ui/PremiumComponents';
-import { Search, MapPin, Building2, Filter, ChevronRight, Plus, Upload, X, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Search, MapPin, Building2, Filter, ChevronRight, Plus, Upload, X, FileText, Image as ImageIcon, Loader2, Edit2, Trash2 } from 'lucide-react';
 import { FAB } from '@/components/Layout';
 import { Modal } from '@/components/ui/Modal';
 import { useApp, Development } from '@/context/AppContext';
@@ -9,16 +9,20 @@ import { useAuthorization } from '@/hooks/useAuthorization';
 
 export default function Developments() {
   const navigate = useNavigate();
-  const { developments, addDevelopment, loading } = useApp();
+  const { developments, addDevelopment, updateDevelopment, deleteDevelopment, loading } = useApp();
   const { isBroker, canCreateStrategicResources } = useAuthorization();
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [newDev, setNewDev] = useState<Partial<Development>>({
+  const [editingDevId, setEditingDevId] = useState<string | null>(null);
+
+  const initialDevState: Partial<Development> = {
     name: '', builder: '', location: '', address: '', price: '', min_income: '',
     type: 'Apartamento', status: 'Lançamento', description: '',
     differentials: [], images: [], contact: { name: '', phone: '', email: '', role: '', avatar: '' }
-  });
+  };
+
+  const [newDev, setNewDev] = useState<Partial<Development>>(initialDevState);
   const [differentialsInput, setDifferentialsInput] = useState('');
 
   const filteredDevelopments = developments.filter(dev =>
@@ -57,22 +61,46 @@ export default function Developments() {
     }
   };
 
+  const handleOpenModal = (dev?: Development) => {
+    if (dev) {
+      setEditingDevId(dev.id);
+      setNewDev(dev);
+      setDifferentialsInput(dev.differentials?.join('\n') || '');
+    } else {
+      setEditingDevId(null);
+      setNewDev(initialDevState);
+      setDifferentialsInput('');
+    }
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = async () => {
     if (!newDev.name) return;
     setIsSaving(true);
     try {
-      await addDevelopment({
+      const payload = {
         ...newDev,
         differentials: differentialsInput.split('\n').filter(d => d.trim())
-      } as Omit<Development, 'id' | 'created_at'>);
+      } as Partial<Development>;
+
+      if (editingDevId) {
+        await updateDevelopment(editingDevId, payload);
+      } else {
+        await addDevelopment(payload as Omit<Development, 'id' | 'created_at'>);
+      }
+
       setIsModalOpen(false);
-      setNewDev({
-        name: '', builder: '', location: '', address: '', price: '', min_income: '',
-        type: 'Apartamento', status: 'Lançamento', description: '',
-        differentials: [], images: [], contact: { name: '', phone: '', email: '', role: '', avatar: '' }
-      });
+      setNewDev(initialDevState);
       setDifferentialsInput('');
+      setEditingDevId(null);
     } finally { setIsSaving(false); }
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Tem certeza que deseja excluir este empreendimento? Isso não pode ser desfeito.')) {
+      await deleteDevelopment(id);
+    }
   };
 
   return (
@@ -80,7 +108,7 @@ export default function Developments() {
       <div className="flex justify-between items-start mb-4">
         <SectionHeader title="Empreendimentos" subtitle="Catálogo exclusivo" />
         {canCreateStrategicResources && (
-          <RoundedButton size="sm" onClick={() => setIsModalOpen(true)} className="flex items-center gap-1 mt-2">
+          <RoundedButton size="sm" onClick={() => handleOpenModal()} className="flex items-center gap-1 mt-2">
             <Plus size={16} /> Novo
           </RoundedButton>
         )}
@@ -106,7 +134,7 @@ export default function Developments() {
             <Building2 size={48} className="mx-auto mb-3 opacity-30" />
             <p className="font-medium">Nenhum empreendimento cadastrado</p>
             {canCreateStrategicResources && (
-              <RoundedButton size="sm" className="mt-4 mx-auto" onClick={() => setIsModalOpen(true)}>
+              <RoundedButton size="sm" className="mt-4 mx-auto" onClick={() => handleOpenModal()}>
                 <Plus size={14} className="mr-1" /> Adicionar Empreendimento
               </RoundedButton>
             )}
@@ -122,9 +150,30 @@ export default function Developments() {
                     <Building2 size={48} />
                   </div>
                 )}
+
+                {/* Status Badge */}
                 <div className="absolute top-3 right-3">
                   <StatusBadge status={dev.status || ''} className="bg-white/90 dark:bg-black/80 backdrop-blur-sm shadow-sm" />
                 </div>
+
+                {/* Admin Actions */}
+                {canCreateStrategicResources && (
+                  <div className="absolute top-3 left-3 flex gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleOpenModal(dev); }}
+                      className="p-2 bg-black/50 text-white rounded-lg hover:bg-gold-500 transition-colors backdrop-blur-sm shadow-sm"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      onClick={(e) => handleDelete(dev.id, e)}
+                      className="p-2 bg-black/50 text-white rounded-lg hover:bg-red-500 transition-colors backdrop-blur-sm shadow-sm"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
+
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                   <h3 className="text-white font-bold text-lg">{dev.name}</h3>
                   <p className="text-white/80 text-xs flex items-center gap-1"><Building2 size={12} /> {dev.builder}</p>
@@ -154,7 +203,7 @@ export default function Developments() {
         )}
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Novo Empreendimento">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingDevId ? "Editar Empreendimento" : "Novo Empreendimento"}>
         <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
           <section className="space-y-4">
             <h4 className="text-sm font-bold text-text-secondary uppercase">Dados Gerais</h4>
@@ -259,7 +308,7 @@ export default function Developments() {
           </section>
 
           <RoundedButton fullWidth onClick={handleSubmit} disabled={isSaving}>
-            {isSaving ? <><Loader2 size={16} className="animate-spin" /> Salvando...</> : 'Salvar Empreendimento'}
+            {isSaving ? <><Loader2 size={16} className="animate-spin" /> Salvando...</> : editingDevId ? 'Atualizar Empreendimento' : 'Salvar Empreendimento'}
           </RoundedButton>
         </div>
       </Modal>
