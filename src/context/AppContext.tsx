@@ -602,7 +602,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data: newDev, error } = await supabase.from('developments').insert([{
         ...data,
-        owner_id: user?.id,
+        user_id: user?.id,
         directorate_id: profile?.directorate_id || null
       }]).select().single();
       if (error) throw error;
