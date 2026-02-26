@@ -15,14 +15,8 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function test() {
-    console.log("1. Fetching a client...");
-    const { data: clients, error: err1 } = await supabase.from('clients').select('id').limit(1);
-    if (err1 || !clients || clients.length === 0) {
-        console.error("Fetch client err:", err1);
-        return;
-    }
-    const clientId = clients[0].id;
-    console.log("Found client:", clientId);
+    const clientId = 'f1eb23de-3b48-41e8-9b44-ea9974b88082';
+    console.log("Using client:", clientId);
 
     console.log("2. Uploading a dummy file to storage...");
     const dummyText = "Hello world";
@@ -42,7 +36,7 @@ async function test() {
     console.timeEnd('upload');
 
     if (uploadError) {
-        console.error("Upload error:", uploadError);
+        console.error("Upload error JSON:", JSON.stringify(uploadError, null, 2));
     } else {
         console.log("Upload success:", uploadData);
 

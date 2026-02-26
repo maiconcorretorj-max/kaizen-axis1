@@ -17,6 +17,8 @@ export function SaveDocumentModal({ isOpen, onClose, fileBlob, fileName }: SaveD
     const [selectedClient, setSelectedClient] = useState<any>(null);
     const [showDropdown, setShowDropdown] = useState(false);
     const [docType, setDocType] = useState('Outros');
+    const [editableName, setEditableName] = useState('');
+    const [fileExt, setFileExt] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [errorMsg, setErrorMsg] = useState('');
@@ -28,9 +30,21 @@ export function SaveDocumentModal({ isOpen, onClose, fileBlob, fileName }: SaveD
             setSelectedClient(null);
             setSaveStatus('idle');
             setErrorMsg('');
+            setEditableName('');
+            setFileExt('');
             return;
         }
-    }, [isOpen]);
+
+        // Extract extension and base name
+        const match = fileName.match(/^(.*)\.([^.]+)$/);
+        if (match) {
+            setEditableName(match[1]);
+            setFileExt(`.${match[2]}`);
+        } else {
+            setEditableName(fileName);
+            setFileExt('.pdf'); // default assumption
+        }
+    }, [isOpen, fileName]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -56,11 +70,12 @@ export function SaveDocumentModal({ isOpen, onClose, fileBlob, fileName }: SaveD
         setErrorMsg('');
 
         try {
-            const ext = fileName.split('.').pop() || 'pdf';
-            const storagePath = `${selectedClient.id}/${Date.now()}.${ext}`;
+            const finalName = `${editableName.trim() || 'Documento Sem Nome'}${fileExt}`;
+            const extForStorage = fileExt.replace('.', '');
+            const storagePath = `${selectedClient.id}/${Date.now()}.${extForStorage}`;
 
             // Convert Blob to File (Supabase storage fetch sometimes hangs on raw Blobs from pdf-lib)
-            const fileObj = new File([fileBlob], fileName, { type: fileBlob.type || 'application/pdf' });
+            const fileObj = new File([fileBlob], finalName, { type: fileBlob.type || 'application/pdf' });
 
             // Wrap upload in a timeout to guarantee it never hangs the UI forever
             const uploadPromise = supabase.storage
@@ -91,7 +106,7 @@ export function SaveDocumentModal({ isOpen, onClose, fileBlob, fileName }: SaveD
                 .from('client_documents')
                 .insert({
                     client_id: selectedClient.id,
-                    name: fileName,
+                    name: finalName,
                     type: docType,
                     url: urlData.publicUrl,
                     created_by: profile?.id ?? null,
@@ -190,9 +205,19 @@ export function SaveDocumentModal({ isOpen, onClose, fileBlob, fileName }: SaveD
 
                     {/* File */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Arquivo</label>
-                        <div className="px-3 py-2.5 bg-gray-100 dark:bg-[#111b21] rounded-xl text-sm text-gray-600 dark:text-gray-400 truncate">
-                            📄 {fileName}
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Nome do Arquivo</label>
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-[#202c33] border border-gray-200 dark:border-gray-700 rounded-xl focus-within:ring-2 focus-within:ring-amber-400 transition-all">
+                            <span className="text-gray-400">📄</span>
+                            <input
+                                type="text"
+                                value={editableName}
+                                onChange={(e) => setEditableName(e.target.value)}
+                                className="flex-1 bg-transparent border-none text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-0 py-1"
+                                placeholder="Nome do documento"
+                            />
+                            <span className="text-sm font-medium text-gray-500 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded-md pointer-events-none select-none">
+                                {fileExt}
+                            </span>
                         </div>
                     </div>
                 </div>
