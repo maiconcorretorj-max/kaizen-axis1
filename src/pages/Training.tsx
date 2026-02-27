@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PremiumCard, SectionHeader, RoundedButton } from '@/components/ui/PremiumComponents';
 import { PlayCircle, FileText, Image as ImageIcon, Plus, X, ExternalLink, Edit2, Trash2 } from 'lucide-react';
 import { FAB } from '@/components/Layout';
@@ -8,10 +8,13 @@ import { useApp, TrainingItem } from '@/context/AppContext';
 
 export default function Training() {
   const { isBroker, canCreateStrategicResources } = useAuthorization();
-  const { trainings, addTraining, updateTraining, deleteTraining } = useApp();
+  const { trainings, addTraining, updateTraining, deleteTraining, uploadFile, getDownloadUrl } = useApp();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewingItem, setViewingItem] = useState<TrainingItem | null>(null);
+  const [viewingUrl, setViewingUrl] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState<Partial<TrainingItem>>({
     title: '',
@@ -35,28 +38,56 @@ export default function Training() {
       setEditingItemId(null);
       setFormData({ title: '', type: 'Vídeo', url: '', duration: '', description: '' });
     }
+    setSelectedFile(null);
     setIsAddModalOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!formData.title || !formData.url) return;
-
-    if (editingItemId) {
-      await updateTraining(editingItemId, formData);
+  useEffect(() => {
+    if (viewingItem) {
+      if (viewingItem.url.startsWith('http')) {
+        setViewingUrl(viewingItem.url);
+      } else {
+        getDownloadUrl(viewingItem.url).then(url => setViewingUrl(url));
+      }
     } else {
-      const newItem = {
+      setViewingUrl(null);
+    }
+  }, [viewingItem, getDownloadUrl]);
+
+  const handleSave = async () => {
+    if (!formData.title || (!formData.url && !selectedFile)) return;
+    setIsSaving(true);
+    try {
+      let finalUrl = formData.url;
+      if (selectedFile) {
+        const path = `trainings/${Date.now()}_${selectedFile.name}`;
+        const uploadedPath = await uploadFile(selectedFile, path, 'documents');
+        if (uploadedPath) finalUrl = uploadedPath;
+      }
+
+      const payload = {
         title: formData.title,
         type: formData.type as 'Vídeo' | 'PDF' | 'Imagem',
-        url: formData.url,
+        url: finalUrl,
         duration: formData.duration || 'N/A',
         description: formData.description || '',
-        thumbnail: `https://picsum.photos/seed/${Date.now()}/400/300` // Random thumbnail
       };
-      await addTraining(newItem);
-    }
 
-    setIsAddModalOpen(false);
-    setFormData({ title: '', type: 'Vídeo', url: '', duration: '', description: '' });
+      if (editingItemId) {
+        await updateTraining(editingItemId, payload);
+      } else {
+        await addTraining({
+          ...payload,
+          thumbnail: `https://picsum.photos/seed/${Date.now()}/400/300` // Placeholder thumbnail
+        });
+      }
+
+      setIsAddModalOpen(false);
+      setFormData({ title: '', type: 'Vídeo', url: '', duration: '', description: '' });
+      setSelectedFile(null);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -177,13 +208,30 @@ export default function Training() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">URL do Conteúdo</label>
-            <input
-              value={formData.url}
-              onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
-              className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
-              placeholder="https://..."
-            />
+            <label className="block text-sm font-medium text-text-secondary mb-1">Mídia (Upload ou Link)</label>
+            <div className="flex flex-col gap-2">
+              <input
+                type="file"
+                accept={formData.type === 'Vídeo' ? 'video/*' : formData.type === 'PDF' ? 'application/pdf' : 'image/*'}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setSelectedFile(e.target.files[0]);
+                    setFormData(prev => ({ ...prev, url: '' }));
+                  }
+                }}
+                className="w-full p-2 bg-surface-50 rounded-xl border border-surface-200 text-sm focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800"
+              />
+              <span className="text-xs text-center text-text-secondary">OU INSIRA UM LINK EXTERNO (Ex: YouTube)</span>
+              <input
+                value={formData.url || ''}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, url: e.target.value }));
+                  setSelectedFile(null);
+                }}
+                className="w-full p-3 bg-surface-50 rounded-xl border-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-800 text-text-primary"
+                placeholder="https://..."
+              />
+            </div>
           </div>
 
           <div>
@@ -206,8 +254,8 @@ export default function Training() {
             />
           </div>
 
-          <RoundedButton fullWidth onClick={handleSave} className="mt-4">
-            {editingItemId ? 'Atualizar' : 'Adicionar'}
+          <RoundedButton fullWidth onClick={handleSave} className="mt-4" disabled={isSaving}>
+            {isSaving ? 'Salvando...' : editingItemId ? 'Atualizar' : 'Adicionar'}
           </RoundedButton>
         </div>
       </Modal>
@@ -223,35 +271,48 @@ export default function Training() {
             <h3 className="text-xl font-bold text-text-primary">{viewingItem.title}</h3>
             <p className="text-sm text-text-secondary">{viewingItem.description}</p>
 
-            <div className="mt-4 bg-black rounded-xl overflow-hidden min-h-[200px] flex items-center justify-center relative">
-              {viewingItem.type === 'Vídeo' && (
-                <iframe
-                  src={viewingItem.url}
-                  className="w-full aspect-video"
-                  title={viewingItem.title}
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              )}
+            <div className="mt-4 bg-black rounded-xl overflow-hidden min-h-[50vh] flex items-center justify-center relative">
+              {!viewingUrl ? (
+                <div className="p-8 text-center text-white"><p>Carregando mídia...</p></div>
+              ) : (
+                <>
+                  {viewingItem.type === 'Vídeo' && (
+                    (viewingUrl.includes('youtube.com') || viewingUrl.includes('youtu.be')) ? (
+                      <iframe
+                        src={viewingUrl}
+                        className="w-full aspect-video"
+                        title={viewingItem.title}
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video
+                        src={viewingUrl}
+                        controls
+                        className="w-full aspect-video outline-none"
+                        title={viewingItem.title}
+                      />
+                    )
+                  )}
 
-              {viewingItem.type === 'Imagem' && (
-                <img
-                  src={viewingItem.url}
-                  alt={viewingItem.title}
-                  className="w-full h-auto max-h-[60vh] object-contain"
-                  referrerPolicy="no-referrer"
-                />
-              )}
+                  {viewingItem.type === 'Imagem' && (
+                    <img
+                      src={viewingUrl}
+                      alt={viewingItem.title}
+                      className="w-full h-auto max-h-[70vh] object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
 
-              {viewingItem.type === 'PDF' && (
-                <div className="p-8 text-center bg-surface-100 w-full">
-                  <FileText size={48} className="mx-auto text-text-secondary mb-4" />
-                  <p className="text-text-primary font-medium mb-4">Este documento é um PDF.</p>
-                  <RoundedButton onClick={() => window.open(viewingItem.url, '_blank')}>
-                    <ExternalLink size={18} className="mr-2" /> Abrir PDF
-                  </RoundedButton>
-                </div>
+                  {viewingItem.type === 'PDF' && (
+                    <iframe
+                      src={viewingUrl}
+                      className="w-full h-[70vh] bg-white"
+                      title={viewingItem.title}
+                    />
+                  )}
+                </>
               )}
             </div>
 
