@@ -485,7 +485,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       // Remove accents and special characters to prevent Supabase Storage "Invalid key" errors
       const sanitizedPath = path.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9.\-_/]/g, '_');
-      const { data, error } = await supabase.storage.from(bucket).upload(sanitizedPath, file, { upsert: true });
+      const { data, error } = await supabase.storage.from(bucket).upload(sanitizedPath, file, {
+        upsert: true,
+        contentType: file.type
+      });
       if (error) throw error;
       return data.path;
     } catch (e: any) {

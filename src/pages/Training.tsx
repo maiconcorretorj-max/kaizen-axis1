@@ -306,11 +306,18 @@ export default function Training() {
                   )}
 
                   {viewingItem.type === 'PDF' && (
-                    <iframe
-                      src={viewingUrl}
-                      className="w-full h-[70vh] bg-white"
-                      title={viewingItem.title}
-                    />
+                    <div className="w-full h-[70vh] flex flex-col bg-white relative">
+                      <iframe
+                        src={viewingUrl}
+                        className="w-full flex-1 border-0"
+                        title={viewingItem.title}
+                      />
+                      <div className="p-3 bg-surface-100 flex justify-center border-t border-surface-200">
+                        <RoundedButton onClick={() => window.open(viewingUrl, '_blank')} size="sm">
+                          <ExternalLink size={16} className="mr-2 inline" /> Abrir PDF em Nova Guia
+                        </RoundedButton>
+                      </div>
+                    </div>
                   )}
                 </>
               )}
