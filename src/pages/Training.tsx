@@ -5,6 +5,97 @@ import { FAB } from '@/components/Layout';
 import { Modal } from '@/components/ui/Modal';
 import { useAuthorization } from '@/hooks/useAuthorization';
 import { useApp, TrainingItem } from '@/context/AppContext';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+// --- Componente auxiliar de visualização do PDF ---
+function PDFViewer({ url }: { url: string }) {
+  const [numPages, setNumPages] = useState<number>();
+  const [pageNumber, setPageNumber] = useState<number>(1);
+  const [scale, setScale] = useState(1);
+  const [containerWidth, setContainerWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setContainerWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
+    setNumPages(numPages);
+    setPageNumber(1);
+  }
+
+  // Define width max baseada no tamanho da janela do usuário mobile/desktop
+  const pdfWidth = Math.min(containerWidth - 64, 800);
+
+  return (
+    <div className="flex flex-col items-center w-full bg-surface-50 h-full">
+      <div className="flex-1 w-full bg-gray-200 dark:bg-gray-800 overflow-y-auto flex flex-col items-center p-4">
+        <Document
+          file={url}
+          onLoadSuccess={onDocumentLoadSuccess}
+          loading={<div className="text-text-secondary animate-pulse p-10">Processando documento PDF...</div>}
+          error={<div className="text-red-500 p-10">Falha ao carregar o PDF. O arquivo pode estar corrompido ou o link ser inválido.</div>}
+          className="flex flex-col items-center"
+        >
+          <Page
+            pageNumber={pageNumber}
+            renderTextLayer={false}
+            renderAnnotationLayer={false}
+            width={pdfWidth * scale}
+            className="shadow-xl bg-white"
+          />
+        </Document>
+      </div>
+
+      <div className="bg-surface-100 border-t border-surface-200 p-4 w-full flex items-center justify-between text-text-primary">
+        <div className="flex gap-2">
+          <RoundedButton
+            size="sm"
+            variant="outline"
+            onClick={() => setScale(s => Math.max(0.5, s - 0.2))}
+          >
+            - Zoom
+          </RoundedButton>
+          <RoundedButton
+            size="sm"
+            variant="outline"
+            onClick={() => setScale(s => Math.min(2.5, s + 0.2))}
+          >
+            +
+          </RoundedButton>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            disabled={pageNumber <= 1}
+            onClick={() => setPageNumber(p => p - 1)}
+            className="px-3 py-1 bg-gold-500 text-white rounded-lg disabled:opacity-50"
+          >
+            &lt; Ant
+          </button>
+
+          <span className="text-sm font-medium">
+            Pág {pageNumber} de {numPages || '?'}
+          </span>
+
+          <button
+            disabled={pageNumber >= (numPages || 1)}
+            onClick={() => setPageNumber(p => p + 1)}
+            className="px-3 py-1 bg-gold-500 text-white rounded-lg disabled:opacity-50"
+          >
+            Prox &gt;
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+// ----------------------------------------------------
 
 export default function Training() {
   const { isBroker, canCreateStrategicResources } = useAuthorization();
@@ -306,17 +397,8 @@ export default function Training() {
                   )}
 
                   {viewingItem.type === 'PDF' && (
-                    <div className="w-full h-[70vh] flex flex-col bg-white relative">
-                      <iframe
-                        src={viewingUrl}
-                        className="w-full flex-1 border-0"
-                        title={viewingItem.title}
-                      />
-                      <div className="p-3 bg-surface-100 flex justify-center border-t border-surface-200">
-                        <RoundedButton onClick={() => window.open(viewingUrl, '_blank')} size="sm">
-                          <ExternalLink size={16} className="mr-2 inline" /> Abrir PDF em Nova Guia
-                        </RoundedButton>
-                      </div>
+                    <div className="w-full h-[80vh] flex flex-col items-center justify-center bg-surface-50 overflow-hidden relative">
+                      <PDFViewer url={viewingUrl} />
                     </div>
                   )}
                 </>
