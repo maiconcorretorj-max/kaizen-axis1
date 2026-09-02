@@ -112,7 +112,7 @@ Deno.serve(async (req: Request) => {
     console.error('[send-password-reset] REQUIRE_CAPTCHA=true mas TURNSTILE_SECRET_KEY ausente');
     return jsonResponse({ message: 'Serviço temporariamente indisponível. Tente novamente em instantes.' }, 503);
   }
-  if (turnstileSecret) {
+  if (requireCaptcha && turnstileSecret) {
     if (!captchaToken) {
       return jsonResponse({ message: 'Verificação de segurança obrigatória.' }, 400);
     }
@@ -176,7 +176,11 @@ Deno.serve(async (req: Request) => {
   const { subject, text, html } = buildEmail(actionLink);
 
   // ── Envia via Resend ───────────────────────────────────────────────────────
-  const RESEND_FROM = Deno.env.get('RESEND_FROM_EMAIL') ?? 'noreply@kaizen-axis.space';
+  const RESEND_FROM = Deno.env.get('RESEND_FROM_EMAIL');
+  if (!RESEND_FROM) {
+    console.error('[send-password-reset] RESEND_FROM_EMAIL ausente');
+    return jsonResponse({ message: 'Serviço de e-mail não configurado' }, 503);
+  }
   try {
     const resendRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',

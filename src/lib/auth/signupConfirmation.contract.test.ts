@@ -23,5 +23,7 @@ describe('signup confirmation wiring', () => {
     assert.match(source, /api\.resend\.com\/emails/);
     assert.match(source, /REQUIRE_CAPTCHA/);
     assert.match(source, /increment_request_counter/);
+    assert.match(source, /if \(requireCaptcha && turnstileSecret\)/);
+    assert.doesNotMatch(source, /noreply@kaizen-axis\.space/);
   });
 });

@@ -25,6 +25,45 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function normalizeStoragePath(rawPath: string): string {
+  const PUBLIC_MARKER = '/object/public/client-documents/';
+  const SIGN_MARKER = '/object/sign/client-documents/';
+  let path = String(rawPath || '').trim();
+  if (path.includes(PUBLIC_MARKER)) {
+    path = path.split(PUBLIC_MARKER)[1] || '';
+  } else if (path.includes(SIGN_MARKER)) {
+    path = (path.split(SIGN_MARKER)[1] || '').split('?')[0] || '';
+  }
+  return path.replace(/^\/+/, '');
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function downloadFirstExistingPath(adminClient: any, rawPath: string, clientId: string) {
+  const base = normalizeStoragePath(rawPath);
+  const candidates = new Set<string>();
+  if (base) candidates.add(base);
+  try {
+    const decoded = decodeURIComponent(base);
+    if (decoded) candidates.add(decoded);
+  } catch { /* ignore */ }
+  if (base && !base.includes('/') && clientId) {
+    candidates.add(`${clientId}/${base}`);
+  }
+  for (const candidate of candidates) {
+    const { data, error } = await adminClient.storage.from('client-documents').download(candidate);
+    if (!error && data) return { blob: data, path: candidate };
+  }
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -96,6 +135,7 @@ Deno.serve(async (req: Request) => {
     subject?: string;
     text?: string;
     attachments?: { filename: string; content: string }[];
+    documentIds?: string[];
   };
   try {
     body = await req.json();
@@ -118,7 +158,10 @@ Deno.serve(async (req: Request) => {
 
   // ── Attachment validation ─────────────────────────────────────────────────
   const rawAttachments = Array.isArray(body.attachments) ? body.attachments : [];
-  if (rawAttachments.length > MAX_ATTACHMENTS) {
+  const documentIds = Array.isArray(body.documentIds)
+    ? [...new Set(body.documentIds.filter((id) => typeof id === 'string' && id.trim()).map((id) => id.trim()))]
+    : [];
+  if (rawAttachments.length + documentIds.length > MAX_ATTACHMENTS) {
     return jsonResponse({ error: `Máximo de ${MAX_ATTACHMENTS} anexos`, resend_ok: false }, 400);
   }
 
@@ -126,7 +169,6 @@ Deno.serve(async (req: Request) => {
   const attachments: { filename: string; content: string }[] = [];
   for (const att of rawAttachments) {
     if (typeof att.filename !== 'string' || typeof att.content !== 'string') continue;
-    // Estimate bytes from base64 length
     const estimated = Math.ceil(att.content.length * 0.75);
     totalBytes += estimated;
     if (totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
@@ -136,8 +178,40 @@ Deno.serve(async (req: Request) => {
     attachments.push({ filename: safeFilename, content: att.content });
   }
 
-  // ── Send via Resend ───────────────────────────────────────────────────────
-  const RESEND_FROM = Deno.env.get('RESEND_FROM_EMAIL') ?? 'noreply@kaizen-axis.space';
+  for (const documentId of documentIds) {
+    const { data: allowedDoc, error: allowedErr } = await userClient
+      .from('client_documents')
+      .select('id, client_id, url, name')
+      .eq('id', documentId)
+      .maybeSingle();
+    if (allowedErr) {
+      return jsonResponse({ error: 'Não foi possível anexar os documentos da ficha', resend_ok: false }, 500);
+    }
+    if (!allowedDoc) {
+      return jsonResponse({ error: 'Acesso negado a um documento da ficha', resend_ok: false }, 403);
+    }
+    const downloaded = await downloadFirstExistingPath(
+      adminClient,
+      String(allowedDoc.url || ''),
+      String(allowedDoc.client_id || ''),
+    );
+    if (!downloaded) {
+      return jsonResponse({ error: `Não foi possível anexar ${allowedDoc.name || 'um documento da ficha'}`, resend_ok: false }, 400);
+    }
+    const bytes = new Uint8Array(await downloaded.blob.arrayBuffer());
+    totalBytes += bytes.byteLength;
+    if (totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+      return jsonResponse({ error: 'Anexos excedem o tamanho máximo permitido (40 MB)', resend_ok: false }, 400);
+    }
+    const fallbackName = downloaded.path.split('/').pop() || 'documento';
+    const safeFilename = String(allowedDoc.name || fallbackName).replace(/[^\w.\-]/g, '_').slice(0, 100);
+    attachments.push({ filename: safeFilename, content: bytesToBase64(bytes) });
+  }
+
+  const RESEND_FROM = Deno.env.get('RESEND_FROM_EMAIL');
+  if (!RESEND_FROM) {
+    return jsonResponse({ error: 'Serviço de e-mail não configurado', resend_ok: false }, 503);
+  }
 
   const resendPayload: Record<string, unknown> = {
     from: RESEND_FROM,
@@ -170,7 +244,7 @@ Deno.serve(async (req: Request) => {
       }, 502);
     }
 
-    return jsonResponse({ resend_ok: true, resend_data: resendData });
+    return jsonResponse({ resend_ok: true, resend_data: resendData, attached: attachments.length });
   } catch (e: any) {
     console.error('[send-email] fetch error', e);
     return jsonResponse({ error: 'Falha ao conectar ao serviço de e-mail', resend_ok: false }, 502);

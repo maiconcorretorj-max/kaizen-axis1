@@ -186,13 +186,6 @@ ${proponentsBlock}`;
     });
   };
 
-  const urlToBase64 = async (url: string): Promise<string> => {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    const file = new File([blob], 'attachment');
-    return fileToBase64(file);
-  };
-
   const handleSend = async () => {
     if (to.length === 0) {
       alert('Por favor, adicione pelo menos um destinatário.');
@@ -208,71 +201,20 @@ ${proponentsBlock}`;
         anonKey: SUPABASE_ANON_KEY,
       });
 
-      // Build base64 attachments
+      const fichaDocs = attachments.filter((att) => !att.file);
+      const missingIds = fichaDocs.filter((att) => !att.document_id);
+      if (missingIds.length > 0) {
+        throw new Error('Não foi possível anexar os documentos da ficha. Recarregue a página e tente novamente.');
+      }
+      const documentIds = fichaDocs.map((att) => att.document_id as string);
+
       const resendAttachments: { filename: string; content: string }[] = [];
-
       for (const att of attachments) {
-        try {
-          let base64Content: string | null = null;
-
-          if (att.file) {
-            // Arquivo adicionado manualmente
-            base64Content = await fileToBase64(att.file);
-          } else if (att.file_path) {
-            // Resolve path relativo (pode estar salvo como URL pública completa)
-            let storagePath = att.file_path;
-            const PUBLIC_MARKER = '/object/public/client-documents/';
-            const SIGN_MARKER   = '/object/sign/client-documents/';
-            if (storagePath.includes(PUBLIC_MARKER)) {
-              storagePath = storagePath.split(PUBLIC_MARKER)[1];
-            } else if (storagePath.includes(SIGN_MARKER)) {
-              storagePath = storagePath.split(SIGN_MARKER)[1].split('?')[0];
-            }
-            storagePath = storagePath.startsWith('/') ? storagePath.slice(1) : storagePath;
-
-            if (!att.document_id) {
-              console.warn(`Anexo sem document_id (legado): ${att.name}`);
-              continue;
-            }
-
-            // Fluxo definitivo: somente função segura v2 (documentId + RLS)
-            let attachSignedUrl: string | null = null;
-            if (session?.access_token) {
-              try {
-                const { data: v2Data, error: v2Error } = await supabase.functions.invoke('get-doc-url-v2', {
-                  headers: functionHeaders,
-                  body: { documentId: att.document_id, rawPath: att.file_path, expiresIn: 300 },
-                });
-                if (!v2Error) {
-                  attachSignedUrl = v2Data.signedUrl ?? null;
-                }
-              } catch { /* ignora e segue com erro controlado abaixo */ }
-            }
-
-            if (!attachSignedUrl) {
-              throw new Error(`Falha ao gerar link seguro do anexo: ${att.name}`);
-            }
-
-            if (attachSignedUrl) {
-              base64Content = await urlToBase64(attachSignedUrl);
-              logAuditEvent({
-                action: 'document_downloaded',
-                entity: 'client_document',
-                entityId: storagePath,
-                metadata: { client_id: id, context: 'email_attachment' }
-              });
-            }
-          }
-
-          if (base64Content) {
-            resendAttachments.push({
-              filename: att.name,
-              content: base64Content,
-            });
-          }
-        } catch (e) {
-          console.warn(`Falha ao carregar anexo "${att.name}":`, e);
-        }
+        if (!att.file) continue;
+        resendAttachments.push({
+          filename: att.name,
+          content: await fileToBase64(att.file),
+        });
       }
 
       const { data, error: invokeError } = await supabase.functions.invoke('send-email', {
@@ -284,6 +226,7 @@ ${proponentsBlock}`;
           subject,
           text: body,
           attachments: resendAttachments,
+          documentIds,
         },
       });
 
@@ -308,7 +251,21 @@ ${proponentsBlock}`;
         throw new Error(resendMsg);
       }
 
-      alert(`Email enviado com sucesso! ✅\n${resendAttachments.length} anexo(s) incluído(s).`);
+      const attachedCount = typeof data?.attached === 'number'
+        ? data.attached
+        : resendAttachments.length + documentIds.length;
+      if (documentIds.length > 0 && attachedCount < documentIds.length) {
+        throw new Error('O e-mail foi enviado sem todos os anexos da ficha.');
+      }
+      for (const docId of documentIds) {
+        logAuditEvent({
+          action: 'document_downloaded',
+          entity: 'client_document',
+          entityId: docId,
+          metadata: { client_id: id, context: 'email_attachment' },
+        });
+      }
+      alert(`Email enviado com sucesso! ✅\n${attachedCount} anexo(s) incluído(s).`);
       if (embedded) onClose?.();
       else navigate(-1);
     } catch (error: any) {

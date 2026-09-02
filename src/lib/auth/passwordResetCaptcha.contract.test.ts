@@ -24,5 +24,6 @@ describe('password reset captcha', () => {
     );
     assert.match(source, /REQUIRE_CAPTCHA/);
     assert.match(source, /error-codes/);
+    assert.match(source, /if \(requireCaptcha && turnstileSecret\)/);
   });
 });
