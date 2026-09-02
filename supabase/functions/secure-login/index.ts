@@ -74,15 +74,14 @@ Deno.serve(async (req: Request) => {
   }
 
   // ── Verificação server-side do Turnstile CAPTCHA ──────────────────────────
-  // REQUIRE_CAPTCHA=true → falha fechado se TURNSTILE_SECRET_KEY não estiver configurada.
-  // Sem REQUIRE_CAPTCHA, comportamento legacy: verifica quando a secret existe.
+  // REQUIRE_CAPTCHA=true → exige Turnstile. Com a flag false, login segue sem widget.
   const requireCaptcha = Deno.env.get('REQUIRE_CAPTCHA') === 'true';
   const turnstileSecret = Deno.env.get('TURNSTILE_SECRET_KEY');
   if (requireCaptcha && !turnstileSecret) {
     console.error('[secure-login] REQUIRE_CAPTCHA=true mas TURNSTILE_SECRET_KEY ausente');
     return jsonResponse({ message: 'Serviço temporariamente indisponível. Tente novamente em instantes.' }, 503);
   }
-  if (turnstileSecret) {
+  if (requireCaptcha && turnstileSecret) {
     if (!captchaToken) {
       return jsonResponse({ message: 'Verificação de segurança obrigatória.' }, 400);
     }

@@ -26,4 +26,12 @@ describe('password reset captcha', () => {
     assert.match(source, /error-codes/);
     assert.match(source, /if \(requireCaptcha && turnstileSecret\)/);
   });
+
+  it('secure-login verifies Turnstile only when REQUIRE_CAPTCHA is true', () => {
+    const source = readFileSync(
+      join(root, 'supabase/functions/secure-login/index.ts'),
+      'utf8',
+    );
+    assert.match(source, /if \(requireCaptcha && turnstileSecret\)/);
+  });
 });
