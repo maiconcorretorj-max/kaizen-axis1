@@ -7,9 +7,19 @@
 //   • Limpa caches de versões antigas         →  sem conflito entre deploys
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_VERSION = 'v6';
+const CACHE_VERSION = 'v7';
 const CACHE_NAME = `kaizen-axis-${CACHE_VERSION}`;
 const MAX_CACHE_ENTRIES = 60;
+const LEGACY_HOSTS = new Set(['kaizen-axis.space', 'www.kaizen-axis.space']);
+const CURRENT_ORIGIN = 'https://app.imobkaizen.com.br';
+
+function isLegacyHost(hostname) {
+  return LEGACY_HOSTS.has(hostname);
+}
+
+function rewriteLegacyUrl(url) {
+  return CURRENT_ORIGIN + url.pathname + url.search + url.hash;
+}
 
 // ── Regras de bypass: requisições que NUNCA devem ser interceptadas ──────────
 function shouldBypass(request) {
@@ -74,6 +84,17 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
+      if (isLegacyHost(self.location.hostname)) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map((name) => caches.delete(name)));
+        await self.registration.unregister();
+        const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        await Promise.all(
+          windowClients.map((client) => client.navigate(rewriteLegacyUrl(new URL(client.url))))
+        );
+        return;
+      }
+
       // Limpa caches de versões anteriores
       const cacheNames = await caches.keys();
       await Promise.all(
@@ -90,6 +111,18 @@ self.addEventListener('activate', (event) => {
 // ─── FETCH ───────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+
+  if (isLegacyHost(self.location.hostname)) {
+    try {
+      const url = new URL(request.url);
+      if (url.origin === self.location.origin) {
+        event.respondWith(Response.redirect(rewriteLegacyUrl(url), 307));
+      }
+    } catch {
+      return;
+    }
+    return;
+  }
 
   if (shouldBypass(request)) return;
 
@@ -193,14 +226,17 @@ self.addEventListener('notificationclick', (event) => {
       .then((windowClients) => {
         // Se já existe uma aba aberta do app, foca e navega
         const existing = windowClients.find((c) =>
-          c.url.startsWith(self.location.origin)
+          c.url.startsWith(self.location.origin) || c.url.startsWith(CURRENT_ORIGIN)
         );
+        const destination = isLegacyHost(self.location.hostname)
+          ? rewriteLegacyUrl(new URL(targetUrl, CURRENT_ORIGIN))
+          : targetUrl;
         if (existing) {
           existing.focus();
-          return existing.navigate(targetUrl);
+          return existing.navigate(destination);
         }
         // Caso contrário, abre nova aba
-        return self.clients.openWindow(targetUrl);
+        return self.clients.openWindow(destination);
       })
   );
 });
