@@ -13,10 +13,12 @@ describe('legacy Vercel origin redirect', () => {
     const redirects = config.redirects ?? [];
     const hosts = redirects.flatMap((rule) => (rule.has ?? []).map((item) => item.value));
 
-    assert.deepEqual(hosts.sort(), ['kaizen-axis.space', 'www.kaizen-axis.space']);
+    assert.deepEqual([...new Set(hosts)].sort(), ['kaizen-axis.space', 'www.kaizen-axis.space']);
+    assert.equal(redirects.length, 4);
     for (const rule of redirects) {
       assert.equal(rule.permanent, false);
-      assert.equal(rule.destination, 'https://app.imobkaizen.com.br/:path*');
+      assert.match(rule.destination, /^https:\/\/app\.imobkaizen\.com\.br\//);
     }
+    assert.ok(redirects.some((rule) => rule.source === '/' && rule.destination === 'https://app.imobkaizen.com.br/'));
   });
 });

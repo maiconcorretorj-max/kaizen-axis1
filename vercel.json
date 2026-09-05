@@ -1,6 +1,18 @@
 {
     "redirects": [
         {
+            "source": "/",
+            "has": [{ "type": "host", "value": "www.kaizen-axis.space" }],
+            "destination": "https://app.imobkaizen.com.br/",
+            "permanent": false
+        },
+        {
+            "source": "/",
+            "has": [{ "type": "host", "value": "kaizen-axis.space" }],
+            "destination": "https://app.imobkaizen.com.br/",
+            "permanent": false
+        },
+        {
             "source": "/:path*",
             "has": [{ "type": "host", "value": "www.kaizen-axis.space" }],
             "destination": "https://app.imobkaizen.com.br/:path*",
